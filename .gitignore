@@ -1,0 +1,33 @@
+# Build directories
+build/
+build_mingw/
+cmake-build-debug/
+cmake-build-release/
+
+# IDE files
+.idea/
+.vscode/
+*.user
+
+# FFmpeg downloads (if any)
+ffmpeg-*.zip
+ffmpeg-*/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Executables and libraries
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+
+# Crash logs
+crash/
+err.txt
+
+# Qt SDK
+video_studio/qt/
