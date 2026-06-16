@@ -1,8 +1,6 @@
 #include "core/timeline/commands/TimelineCommands.h"
 
-// ---------------------------------------------------------
 // AddClipCommand
-// ---------------------------------------------------------
 AddClipCommand::AddClipCommand(TimelineClipModel* model, const TimelineClip& clip, QUndoCommand* parent)
     : QUndoCommand(parent), m_model(model), m_clip(clip), m_row(-1), m_firstTime(true)
 {
@@ -24,9 +22,7 @@ void AddClipCommand::redo() {
     }
 }
 
-// ---------------------------------------------------------
 // RemoveClipCommand
-// ---------------------------------------------------------
 RemoveClipCommand::RemoveClipCommand(TimelineClipModel* model, int row, Type type, const QString& param, QUndoCommand* parent)
     : QUndoCommand(parent), m_model(model), m_row(row), m_type(type), m_param(param), m_firstTime(true)
 {
@@ -84,9 +80,7 @@ void RemoveClipCommand::redo() {
     }
 }
 
-// ---------------------------------------------------------
 // MoveClipCommand
-// ---------------------------------------------------------
 MoveClipCommand::MoveClipCommand(TimelineClipModel* model, int row, double newStart, int newTrack, bool linked, QUndoCommand* parent)
     : QUndoCommand(parent), m_model(model), m_row(row), m_newStart(newStart), m_newTrack(newTrack), m_linked(linked), m_firstTime(true)
 {
@@ -125,9 +119,7 @@ void MoveClipCommand::redo() {
     }
 }
 
-// ---------------------------------------------------------
 // TrimClipCommand
-// ---------------------------------------------------------
 TrimClipCommand::TrimClipCommand(TimelineClipModel* model, int row, double newStart, double newDuration, double newInPoint, bool linked, QUndoCommand* parent)
     : QUndoCommand(parent), m_model(model), m_row(row), m_newStart(newStart), m_newDuration(newDuration), m_newInPoint(newInPoint), m_linked(linked), m_firstTime(true)
 {
@@ -164,9 +156,7 @@ void TrimClipCommand::redo() {
     }
 }
 
-// ---------------------------------------------------------
 // SplitClipCommand
-// ---------------------------------------------------------
 SplitClipCommand::SplitClipCommand(TimelineClipModel* model, int row, double splitSeconds, const QString& rightLinkGroupId, QUndoCommand* parent)
     : QUndoCommand(parent), m_model(model), m_row(row), m_splitSeconds(splitSeconds), m_rightLinkGroupId(rightLinkGroupId), m_newRightRow(-1), m_firstTime(true)
 {

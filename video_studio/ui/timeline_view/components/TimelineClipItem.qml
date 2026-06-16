@@ -35,7 +35,6 @@ Rectangle {
     signal trimLeftRequested(int index, real deltaSeconds, bool linked)
     signal trimRightRequested(int index, real deltaSeconds, bool linked)
 
-    // --- Layout ---
     readonly property bool isSubtitle: !hasVideo && !hasAudio
     
     x: startSeconds * pixelsPerSecond
@@ -47,11 +46,9 @@ Rectangle {
     clip: true
     z: selected ? 4 : 3
 
-    // --- Border ---
     border.color: selected ? "#5ec4e8" : "transparent"
     border.width: selected ? 1.5 : 0
 
-    // --- Computed ---
     readonly property int filmFrameWidth: 64
     readonly property int filmFrameCount: hasVideo && width > 80
         ? Math.max(1, Math.min(20, Math.ceil(width / filmFrameWidth)))
@@ -73,9 +70,7 @@ Rectangle {
         return activeTool === "selection" || activeTool === "ripple" || activeTool === "slip"
     }
 
-    // ======================================================
     // FILMSTRIP — fills the clip behind everything
-    // ======================================================
     Row {
         id: filmstrip
         anchors.left: parent.left       
@@ -103,9 +98,7 @@ Rectangle {
         }
     }
 
-    // ======================================================
     // TITLE OVERLAY — semi-transparent bar over filmstrip top
-    // ======================================================
     Rectangle {
         id: titleOverlay
         anchors.left: parent.left
@@ -145,9 +138,7 @@ Rectangle {
         }
     }
 
-    // ======================================================
     // AUDIO WAVEFORM STRIP — compact bar at very bottom
-    // ======================================================
     Rectangle {
         id: waveform
         anchors.left: parent.left
@@ -181,9 +172,7 @@ Rectangle {
         }
     }
 
-    // ======================================================
     // DELETE BUTTON — clean circle, top-right
-    // ======================================================
     Rectangle {
         id: deleteClipButton
         anchors.right: parent.right
@@ -213,9 +202,7 @@ Rectangle {
         }
     }
 
-    // ======================================================
     // SELECTION BORDER — subtle glow when selected
-    // ======================================================
     Rectangle {
         anchors.fill: parent
         color: "transparent"
@@ -226,9 +213,6 @@ Rectangle {
         opacity: clipRoot.selected ? 1.0 : 0.6
     }
 
-    // ======================================================
-    // MOUSE INTERACTION
-    // ======================================================
     MouseArea {
         id: clipMouse
         anchors.fill: parent
@@ -285,9 +269,6 @@ Rectangle {
             clipRoot.moveRequested(clipRoot.clipIndex, nextStart, nextTrack, clipRoot.linkedSelection)
         }
     }
-    // ======================================================
-    // TRIM HANDLES
-    // ======================================================
     Rectangle {
         id: leftTrimHandle
         anchors.left: parent.left

@@ -5,9 +5,7 @@
 #include <QVector>
 #include "core/timeline/models/TimelineClipModel.h"
 
-// ---------------------------------------------------------
 // AddClipCommand
-// ---------------------------------------------------------
 class AddClipCommand : public QUndoCommand {
 public:
     AddClipCommand(TimelineClipModel* model, const TimelineClip& clip, QUndoCommand* parent = nullptr);
@@ -20,9 +18,7 @@ private:
     bool m_firstTime;
 };
 
-// ---------------------------------------------------------
 // RemoveClipCommand
-// ---------------------------------------------------------
 class RemoveClipCommand : public QUndoCommand {
 public:
     enum Type { SingleRow, LinkedGroup, FilePath, All };
@@ -43,9 +39,7 @@ private:
     bool m_firstTime;
 };
 
-// ---------------------------------------------------------
 // MoveClipCommand
-// ---------------------------------------------------------
 class MoveClipCommand : public QUndoCommand {
 public:
     MoveClipCommand(TimelineClipModel* model, int row, double newStart, int newTrack, bool linked, QUndoCommand* parent = nullptr);
@@ -66,9 +60,7 @@ private:
     bool m_firstTime;
 };
 
-// ---------------------------------------------------------
 // TrimClipCommand
-// ---------------------------------------------------------
 class TrimClipCommand : public QUndoCommand {
 public:
     TrimClipCommand(TimelineClipModel* model, int row, double newStart, double newDuration, double newInPoint, bool linked, QUndoCommand* parent = nullptr);
@@ -90,9 +82,7 @@ private:
     bool m_firstTime;
 };
 
-// ---------------------------------------------------------
 // SplitClipCommand
-// ---------------------------------------------------------
 class SplitClipCommand : public QUndoCommand {
 public:
     SplitClipCommand(TimelineClipModel* model, int row, double splitSeconds, const QString& rightLinkGroupId = QString(), QUndoCommand* parent = nullptr);

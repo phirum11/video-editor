@@ -73,7 +73,6 @@ Window {
                     color: SplitHandle.pressed ? Theme.surfacePressed : (SplitHandle.hovered ? Theme.surfaceHover : "#000000")
                 }
 
-                // --- Default Layout Placeholders ---
                 Item {
                     id: ph_projectBrowser_default
                     visible: !mainWindow.isVerticalLayout
@@ -98,7 +97,6 @@ Window {
                     SplitView.fillHeight: true
                 }
 
-                // --- Vertical Layout Placeholders ---
                 SplitView {
                     id: blockA_inner
                     orientation: Qt.Horizontal
@@ -155,7 +153,6 @@ Window {
             }
         }
 
-        // --- Actual Components ---
         MediaPool {
             id: projectBrowser
             parent: mainWindow.isVerticalLayout ? ph_projectBrowser_vert : ph_projectBrowser_default

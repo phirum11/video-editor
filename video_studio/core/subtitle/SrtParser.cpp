@@ -40,7 +40,6 @@ QVector<SubtitleEntry> SrtParser::parse(const QString& filePath)
     // 00:00:01,000 --> 00:00:03,500
     // Subtitle text line 1
     // Subtitle text line 2
-    //
     // 2
     // ...
 
