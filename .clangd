@@ -1,3 +1,5 @@
 CompileFlags:
   CompilationDatabase: C:/we_hunting/video_studio/build_mingw
   Compiler: C:/Qt/Tools/mingw1310_64/bin/g++.exe
+  Add:
+    - "-D__rdtsc=___rdtsc"

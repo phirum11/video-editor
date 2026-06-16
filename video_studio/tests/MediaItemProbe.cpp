@@ -1,4 +1,4 @@
-#include "core/media/MediaItem.h"
+#include "core/media/models/MediaItem.h"
 
 #include <QCoreApplication>
 #include <QElapsedTimer>

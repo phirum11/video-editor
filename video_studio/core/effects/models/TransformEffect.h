@@ -3,7 +3,7 @@
 #include <QObject>
 #include <QString>
 #include <QtQml/qqmlregistration.h>
-#include "core/effects/EffectData.h"
+#include "core/effects/models/EffectData.h"
 
 class TransformEffect : public QObject
 {

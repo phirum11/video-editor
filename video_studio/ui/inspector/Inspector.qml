@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
 import VideoStudioUI
+import "tabs"
 
 Rectangle {
     id: inspectorRoot

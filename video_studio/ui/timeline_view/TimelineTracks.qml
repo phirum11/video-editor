@@ -4,6 +4,7 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
 import VideoStudioUI
+import "components"
 
 import "../settings"
 
@@ -53,7 +54,7 @@ Rectangle {
     readonly property real contentWidth: Math.max(Math.max(1, timelineViewport.width), displayDuration * pixelsPerSecond + 220)
     readonly property real maxScroll: Math.max(0, contentWidth - Math.max(1, timelineViewport.width))
 
-    signal previewRequested(string name, string filePath, real duration, bool hasVideo)
+    signal previewRequested(string name, string filePath, real duration, bool hasVideo, real startOffset, real sourceInPoint)
     signal previewCleared()
     signal seekRequested(real seconds)
     signal toolSelected(string tool)
@@ -159,9 +160,9 @@ Rectangle {
         keepPlayheadVisible()
     }
 
-    function requestPreview(name, filePath, duration, hasVideo) {
+    function requestPreview(name, filePath, duration, hasVideo, startOffset, sourceInPoint) {
         previewFilePath = filePath
-        previewRequested(name, filePath, duration, hasVideo)
+        previewRequested(name, filePath, duration, hasVideo, startOffset !== undefined ? startOffset : 0, sourceInPoint !== undefined ? sourceInPoint : 0)
     }
 
     function addMediaClip(name, filePath, duration, hasVideo, hasAudio, startSeconds, trackIndex) {
@@ -179,7 +180,7 @@ Rectangle {
         )
         if (selectedRow >= 0) {
             if (hasVideo || hasAudio) {
-                requestPreview(name, filePath, safeDuration, hasVideo)
+                requestPreview(name, filePath, safeDuration, hasVideo, safeStart, 0)
             }
             seekRequested(safeStart)
         }
@@ -282,10 +283,21 @@ Rectangle {
         id: timelineSettings
     }
 
+    function clipIndexUnderPlayhead() {
+        if (backend.selectedClipIndex >= 0 && backend.clipContains(backend.selectedClipIndex, tracksRoot.timelinePosition)) {
+            return backend.selectedClipIndex;
+        }
+        for (let i = backend.clipCount - 1; i >= 0; i--) {
+            if (backend.clipContains(i, tracksRoot.timelinePosition)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
-
         TimelineHeader {
             Layout.fillWidth: true
             Layout.preferredHeight: 32
@@ -295,48 +307,53 @@ Rectangle {
             activeTool: tracksRoot.activeTool
             snapEnabled: tracksRoot.snapEnabled
             zoomValue: tracksRoot.zoomValue
-            hasSelection: backend.selectedClipIndex >= 0
-            playheadOverSelection: {
-                if (backend.selectedClipIndex < 0) return false;
-                const startSec = backend.clipStartSeconds(backend.selectedClipIndex);
-                const durationSec = backend.clipDurationSeconds(backend.selectedClipIndex);
-                return tracksRoot.timelinePosition >= startSec && tracksRoot.timelinePosition <= (startSec + durationSec);
-            }
+            
+            property int activeClipIndex: backend.selectedClipIndex >= 0 ? backend.selectedClipIndex : tracksRoot.clipIndexUnderPlayhead()
+            
+            hasSelection: backend.selectedClipIndex >= 0 || activeClipIndex >= 0
+            playheadOverSelection: activeClipIndex >= 0
+            
             onToolSelected: function(tool) { tracksRoot.toolSelected(tool) }
             onSnapToggled: function(enabled) { tracksRoot.snapToggleRequested(enabled) }
             onMarkerRequested: tracksRoot.addMarkerAtCurrentTime()
             onZoomInRequested: tracksRoot.zoomIn()
             onZoomOutRequested: tracksRoot.zoomOut()
             onZoomValueRequested: function(value) { tracksRoot.setZoom(value, 0) }
+            // qmllint disable unqualified
             onUndoRequested: { if (typeof ActionManager !== "undefined") ActionManager.executeAction("edit.undo") }
             onRedoRequested: { if (typeof ActionManager !== "undefined") ActionManager.executeAction("edit.redo") }
+            // qmllint enable unqualified
             onSplitRequested: {    
-                if (backend.selectedClipIndex >= 0) {
-                    tracksRoot.splitClipAt(backend.selectedClipIndex, tracksRoot.timelinePosition, tracksRoot.linkedSelection)
+                if (activeClipIndex >= 0) {
+                    tracksRoot.splitClipAt(activeClipIndex, tracksRoot.timelinePosition, tracksRoot.linkedSelection)
                 }
             }
             onDeleteLeftRequested: {
-                if (backend.selectedClipIndex >= 0) {
-                    const clipStart = backend.clipStartSeconds(backend.selectedClipIndex)
+                if (activeClipIndex >= 0) {
+                    const clipStart = backend.clipStartSeconds(activeClipIndex)
                     if (clipStart >= 0 && tracksRoot.timelinePosition > clipStart) {
                         const delta = tracksRoot.timelinePosition - clipStart
-                        trimController.trimClipLeft(backend, backend.selectedClipIndex, delta)
+                        trimController.trimClipLeft(backend, activeClipIndex, delta)
                     }
                 }
             }
             onDeleteRightRequested: {
-                if (backend.selectedClipIndex >= 0) {
-                    const startSec = backend.clipStartSeconds(backend.selectedClipIndex)
-                    const durationSec = backend.clipDurationSeconds(backend.selectedClipIndex)
+                if (activeClipIndex >= 0) {
+                    const startSec = backend.clipStartSeconds(activeClipIndex)
+                    const durationSec = backend.clipDurationSeconds(activeClipIndex)
                     const clipEnd = startSec + durationSec
                     if (clipEnd >= 0 && tracksRoot.timelinePosition < clipEnd) {
                         const delta = clipEnd - tracksRoot.timelinePosition
-                        trimController.trimClipRight(backend, backend.selectedClipIndex, delta)
+                        trimController.trimClipRight(backend, activeClipIndex, delta)
                     }
                 }
             }
             onDeleteRequested: {
-                tracksRoot.deleteSelectedClip()
+                if (backend.selectedClipIndex >= 0) {
+                    tracksRoot.deleteSelectedClip()
+                } else if (activeClipIndex >= 0) {
+                    tracksRoot.deleteClipAt(activeClipIndex, "")
+                }
             }
         }
 
@@ -353,6 +370,7 @@ Rectangle {
                 trackHeight: tracksRoot.trackHeight
                 markerHeight: tracksRoot.markerHeight
                 timecode: tracksRoot.formatTime(tracksRoot.visiblePosition)
+                durationTimecode: tracksRoot.formatTime(backend.timelineEndSeconds)
                 snapEnabled: tracksRoot.snapEnabled
                 linkedSelection: tracksRoot.linkedSelection
                 hasTimelineClips: backend.clipCount > 0
@@ -418,7 +436,11 @@ Rectangle {
                         onSelectionCleared: backend.selectedClipIndex = -1
                         onClipSelected: function(index) { backend.selectedClipIndex = index }
                         onPreviewRequested: function(name, filePath, duration, hasVideo) {
-                            tracksRoot.requestPreview(name, filePath, duration, hasVideo)
+                            const clipIdx = backend.selectedClipIndex
+                            const clipStart = clipIdx >= 0 ? backend.clipStartSeconds(clipIdx) : 0
+                            const clipData = clipIdx >= 0 ? backend.clipAt(clipIdx) : null
+                            const inPoint = clipData ? (clipData.sourceInPoint || 0) : 0
+                            tracksRoot.requestPreview(name, filePath, duration, hasVideo, clipStart, inPoint)
                         }
                         onClipDeleted: function(index, filePath) { tracksRoot.deleteClipAt(index, filePath) }
                         onClipSplit: function(index, seconds, linked) { tracksRoot.splitClipAt(index, seconds, linked) }
@@ -523,3 +545,4 @@ Rectangle {
         }
     }
 }
+

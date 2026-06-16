@@ -4,7 +4,7 @@
 #include <QObject>
 #include <QUrl>
 #include <QtQml/qqmlregistration.h>
-#include "core/media/MediaListModel.h"
+#include "core/media/models/MediaListModel.h"
 
 class MediaPoolController : public QObject
 {

@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import VideoStudioUI
+import "components"
 
 Rectangle {
     id: timelineRoot
@@ -14,7 +15,7 @@ Rectangle {
     property bool linkedSelection: true
     property alias timelineController: tracks.timelineController
 
-    signal previewRequested(string name, string filePath, real duration, bool hasVideo)
+    signal previewRequested(string name, string filePath, real duration, bool hasVideo, real startOffset, real sourceInPoint)
     signal previewCleared()
     signal seekRequested(real seconds)
     signal subtitleDropped(string filePath, real startSeconds, int trackIndex)
@@ -51,8 +52,8 @@ Rectangle {
             onToolSelected: function(tool) { timelineRoot.activeTool = tool }
             onSnapToggleRequested: function(enabled) { timelineRoot.snapEnabled = enabled }
             onLinkedSelectionToggleRequested: function(enabled) { timelineRoot.linkedSelection = enabled }
-            onPreviewRequested: function(name, filePath, duration, hasVideo) {
-                timelineRoot.previewRequested(name, filePath, duration, hasVideo)
+            onPreviewRequested: function(name, filePath, duration, hasVideo, startOffset, sourceInPoint) {
+                timelineRoot.previewRequested(name, filePath, duration, hasVideo, startOffset, sourceInPoint)
             }
             onPreviewCleared: timelineRoot.previewCleared()
             onSeekRequested: function(seconds) {
@@ -70,3 +71,4 @@ Rectangle {
         }
     }
 }
+

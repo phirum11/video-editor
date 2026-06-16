@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import QtQuick.Controls
 import VideoStudioUI
 import "header"
+import "header/menus"
 import "inspector"
 import "media_pool"
 import "monitors"
@@ -207,8 +208,8 @@ Window {
             sequenceDuration: videoPreview.duration
             audioLevelLeft: videoPreview.audioLevelLeft
             audioLevelRight: videoPreview.audioLevelRight
-            onPreviewRequested: function(name, filePath, duration, hasVideo) {
-                videoPreview.loadClip(name, filePath, duration, hasVideo)
+            onPreviewRequested: function(name, filePath, duration, hasVideo, startOffset, sourceInPoint) {
+                videoPreview.loadClipWithOffset(name, filePath, duration, hasVideo, startOffset, sourceInPoint)
             }
             onPreviewCleared: videoPreview.clearPreview()
             onSeekRequested: function(seconds) {

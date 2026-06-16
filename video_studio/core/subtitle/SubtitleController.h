@@ -7,7 +7,7 @@
 #include <QColor>
 #include <QFont>
 #include <QColor>
-#include "ui/timeline_view/TimelineController.h"
+#include "ui/timeline_view/controllers/TimelineController.h"
 
 class SubtitleController : public QObject
 {
@@ -47,3 +47,4 @@ private:
     QColor m_color;
     double m_verticalPosition = -1.0;
 };
+

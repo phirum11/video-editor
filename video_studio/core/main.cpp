@@ -9,16 +9,16 @@
 
 #include <iostream>
 #include "core/utils/MediaImageProvider.h"
-#include "core/media/AudioWaveformProvider.h"
-#include "core/actions/ActionManager.h"
-#include "core/actions/MenuManager.h"
-#include "core/actions/FileActions.h"
-#include "core/actions/EditActions.h"
-#include "core/actions/ClipActions.h"
-#include "core/actions/SequenceActions.h"
-#include "core/actions/ViewActions.h"
-#include "core/actions/ToolActions.h"
-#include "core/actions/HelpActions.h"
+#include "core/media/providers/AudioWaveformProvider.h"
+#include "core/actions/managers/ActionManager.h"
+#include "core/actions/managers/MenuManager.h"
+#include "core/actions/handlers/FileActions.h"
+#include "core/actions/handlers/EditActions.h"
+#include "core/actions/handlers/ClipActions.h"
+#include "core/actions/handlers/SequenceActions.h"
+#include "core/actions/handlers/ViewActions.h"
+#include "core/actions/handlers/ToolActions.h"
+#include "core/actions/handlers/HelpActions.h"
 #include <QQmlContext>
 
 int main(int argc, char *argv[])

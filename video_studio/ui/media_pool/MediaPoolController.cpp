@@ -6,7 +6,7 @@
 #include <QDir>
 #include <QDesktopServices>
 #include <memory>
-#include "core/media/MediaItem.h"
+#include "core/media/models/MediaItem.h"
 
 MediaPoolController::MediaPoolController(QObject *parent)
     : QObject(parent), m_mediaModel(new MediaListModel(this))

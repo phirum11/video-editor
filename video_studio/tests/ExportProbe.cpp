@@ -1,6 +1,6 @@
-#include "core/export/VideoExporter.h"
+#include "core/export/exporters/VideoExporter.h"
 #include "core/subtitle/SrtParser.h"
-#include "ui/timeline_view/TimelineController.h"
+#include "ui/timeline_view/controllers/TimelineController.h"
 
 #include <QDir>
 #include <QEventLoop>
@@ -158,3 +158,4 @@ int main(int argc, char* argv[])
               << "progress=" << maxProgress << '\n';
     return 0;
 }
+

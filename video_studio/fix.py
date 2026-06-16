@@ -10,7 +10,7 @@ if '#include <QFont>' not in content_h:
         f.write(content_h)
 
 # Fix VideoExporter.cpp
-path_cpp = 'core/export/VideoExporter.cpp'
+path_cpp = 'core/export/exporters/VideoExporter.cpp'
 with open(path_cpp, 'r', encoding='utf-8') as f:
     content_cpp = f.read()
 

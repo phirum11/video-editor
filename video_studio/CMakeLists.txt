@@ -13,16 +13,16 @@ find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 QuickDial
 add_executable(VideoStudio
     core/main.cpp
     core/utils/MediaImageProvider.cpp
-    core/media/MediaListModel.cpp
-    core/media/MediaManager.cpp
-    core/media/MediaItem.cpp
-    core/media/AudioWaveformProvider.cpp
+    core/media/models/MediaListModel.cpp
+    core/media/managers/MediaManager.cpp
+    core/media/models/MediaItem.cpp
+    core/media/providers/AudioWaveformProvider.cpp
     core/rendering/RenderEngine.cpp
     core/rendering/VideoRenderer.cpp
-    core/timeline/TimelineClipModel.cpp
-    core/timeline/TimelineManager.cpp
-    core/timeline/Track.cpp
-    core/timeline/Clip.cpp
+    core/timeline/models/TimelineClipModel.cpp
+    core/timeline/managers/TimelineManager.cpp
+    core/timeline/models/Track.cpp
+    core/timeline/models/Clip.cpp
 )
 
 set(QT_QML_GENERATE_QMLLS_INI ON)
@@ -34,39 +34,40 @@ qt_add_qml_module(VideoStudio
     QML_FILES
         ui/Theme.qml
         ui/Main.qml
-        ui/header/HeaderMenu.qml
-        ui/header/ExportDialog.qml
-        ui/header/ExportUtils.js
-        ui/header/EmptyTimelineDialog.qml
-        ui/header/AppMenu.qml
-        ui/header/AppMenuItem.qml
+        ui/header/menus/HeaderMenu.qml
+        ui/header/dialogs/ExportDialog.qml
+        ui/header/utils/ExportUtils.js
+        ui/header/dialogs/EmptyTimelineDialog.qml
+        ui/header/menus/AppMenu.qml
+        ui/header/menus/AppMenuItem.qml
         ui/media_pool/MediaPool.qml
         ui/media_pool/MediaPoolFooter.qml
         ui/media_pool/EffectHub.qml
         ui/media_pool/AIAssist.qml
         ui/monitors/SourceMonitor.qml
         ui/monitors/ProgramMonitor.qml
-        ui/monitors/LiveSubtitleOverlay.qml
-        ui/monitors/RegionSelectorOverlay.qml
+        ui/monitors/overlays/LiveSubtitleOverlay.qml
+        ui/monitors/overlays/RegionSelectorOverlay.qml
         ui/inspector/Inspector.qml
-        ui/inspector/ColorWheel.qml
-        ui/inspector/EffectSlider.qml
-        ui/inspector/AccordionHeader.qml
-        ui/inspector/BasicTab.qml
-        ui/inspector/ColorTab.qml
-        ui/inspector/BlurTab.qml
-        ui/inspector/StylizeTab.qml
-        ui/inspector/AudioTab.qml
-        ui/inspector/NeonEqualizer.qml
+        ui/inspector/components/ColorWheel.qml
+        ui/inspector/components/EffectSlider.qml
+        ui/inspector/components/AccordionHeader.qml
+        ui/inspector/tabs/BasicTab.qml
+        ui/inspector/tabs/ColorTab.qml
+        ui/inspector/tabs/BlurTab.qml
+        ui/inspector/tabs/StylizeTab.qml
+        ui/inspector/tabs/AudioTab.qml
+        ui/inspector/components/NeonEqualizer.qml
         ui/timeline_view/TimelineView.qml
-        ui/timeline_view/TimelineToolbar.qml
+        ui/timeline_view/components/TimelineToolbar.qml
         ui/timeline_view/TimelineTracks.qml
-        ui/timeline_view/TimelineCanvas.qml
-        ui/timeline_view/TimelineClipItem.qml
-        ui/timeline_view/TimelineHeader.qml
-        ui/timeline_view/TimelineRuler.qml
-        ui/timeline_view/TimelineTrackHeaders.qml
-        ui/timeline_view/AudioMeter.qml
+        ui/timeline_view/components/TimelineCanvas.qml
+        ui/timeline_view/components/TimelineClipItem.qml
+        ui/timeline_view/components/TimelineClipContextMenu.qml
+        ui/timeline_view/components/TimelineHeader.qml
+        ui/timeline_view/components/TimelineRuler.qml
+        ui/timeline_view/components/TimelineTrackHeaders.qml
+        ui/timeline_view/components/AudioMeter.qml
         ui/settings/TimelineSettingsMenu.qml
         ui/main_setting/MainSettings.qml
     RESOURCES
@@ -116,28 +117,28 @@ qt_add_qml_module(VideoStudio
         assets/retro_effect.png
         assets/party_effect.png
     SOURCES
-        core/actions/ActionManager.cpp
-        core/actions/ActionManager.h
-        core/actions/MenuManager.cpp
-        core/actions/MenuManager.h
-        core/actions/FileActions.cpp
-        core/actions/FileActions.h
-        core/actions/EditActions.cpp
-        core/actions/EditActions.h
-        core/actions/ClipActions.cpp
-        core/actions/ClipActions.h
-        core/actions/SequenceActions.cpp
-        core/actions/SequenceActions.h
-        core/actions/ViewActions.cpp
-        core/actions/ViewActions.h
-        core/actions/ToolActions.cpp
-        core/actions/ToolActions.h
-        core/actions/HelpActions.cpp
-        core/actions/HelpActions.h
-        core/effects/EffectProcessor.cpp
-        core/effects/EffectProcessor.h
-        core/effects/EffectController.cpp
-        core/effects/EffectController.h
+        core/actions/managers/ActionManager.cpp
+        core/actions/managers/ActionManager.h
+        core/actions/managers/MenuManager.cpp
+        core/actions/managers/MenuManager.h
+        core/actions/handlers/FileActions.cpp
+        core/actions/handlers/FileActions.h
+        core/actions/handlers/EditActions.cpp
+        core/actions/handlers/EditActions.h
+        core/actions/handlers/ClipActions.cpp
+        core/actions/handlers/ClipActions.h
+        core/actions/handlers/SequenceActions.cpp
+        core/actions/handlers/SequenceActions.h
+        core/actions/handlers/ViewActions.cpp
+        core/actions/handlers/ViewActions.h
+        core/actions/handlers/ToolActions.cpp
+        core/actions/handlers/ToolActions.h
+        core/actions/handlers/HelpActions.cpp
+        core/actions/handlers/HelpActions.h
+        core/effects/processors/EffectProcessor.cpp
+        core/effects/processors/EffectProcessor.h
+        core/effects/controllers/EffectController.cpp
+        core/effects/controllers/EffectController.h
         core/effects/models/TransformEffect.cpp
         core/effects/models/TransformEffect.h
         core/effects/models/ColorEffect.cpp
@@ -148,31 +149,35 @@ qt_add_qml_module(VideoStudio
         core/effects/models/StylizeEffect.h
         core/effects/models/AudioEffect.cpp
         core/effects/models/AudioEffect.h
-        ui/inspector/InspectorController.cpp
-        ui/inspector/InspectorController.h
+        core/vocal/VocalIsolator.cpp
+        core/vocal/VocalIsolator.h
+        ui/inspector/controllers/InspectorController.cpp
+        ui/inspector/controllers/InspectorController.h
         ui/media_pool/MediaPoolController.cpp
         ui/media_pool/MediaPoolController.h
-        ui/timeline_view/TimelineController.cpp
-        ui/timeline_view/TimelineController.h
-        ui/timeline_view/ClipTrimController.cpp
-        ui/timeline_view/ClipTrimController.h
-        core/export/VideoExporter.cpp
-        core/export/VideoExporter.h
-        core/export/AdvancedSubtitleRenderer.cpp
-        core/export/AdvancedSubtitleRenderer.h
-        core/export/HardwareEncoder.h
-        core/export/NvidiaEncoder.cpp
-        core/export/NvidiaEncoder.h
-        core/export/AmdEncoder.cpp
-        core/export/AmdEncoder.h
-        core/export/IntelEncoder.cpp
-        core/export/IntelEncoder.h
-        core/export/HardwareDetector.cpp
-        core/export/HardwareDetector.h
-        core/playback/AudioEngine.cpp
-        core/playback/AudioEngine.h
-        core/playback/PlaybackEngine.cpp
-        core/playback/PlaybackEngine.h
+        core/timeline/commands/TimelineCommands.cpp
+        core/timeline/commands/TimelineCommands.h
+        ui/timeline_view/controllers/TimelineController.cpp
+        ui/timeline_view/controllers/TimelineController.h
+        ui/timeline_view/controllers/ClipTrimController.cpp
+        ui/timeline_view/controllers/ClipTrimController.h
+        core/export/exporters/VideoExporter.cpp
+        core/export/exporters/VideoExporter.h
+        core/export/renderers/AdvancedSubtitleRenderer.cpp
+        core/export/renderers/AdvancedSubtitleRenderer.h
+        core/export/encoders/HardwareEncoder.h
+        core/export/encoders/NvidiaEncoder.cpp
+        core/export/encoders/NvidiaEncoder.h
+        core/export/encoders/AmdEncoder.cpp
+        core/export/encoders/AmdEncoder.h
+        core/export/encoders/IntelEncoder.cpp
+        core/export/encoders/IntelEncoder.h
+        core/export/encoders/HardwareDetector.cpp
+        core/export/encoders/HardwareDetector.h
+        core/playback/engines/AudioEngine.cpp
+        core/playback/engines/AudioEngine.h
+        core/playback/engines/PlaybackEngine.cpp
+        core/playback/engines/PlaybackEngine.h
         core/subtitle/SrtParser.cpp
         core/subtitle/SrtParser.h
         core/subtitle/SubtitleController.cpp
@@ -203,13 +208,19 @@ target_link_directories(VideoStudio PRIVATE
 target_include_directories(VideoStudio PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/inspector
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/inspector/controllers
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/media_pool
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/timeline_view
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/timeline_view/controllers
     ${CMAKE_CURRENT_SOURCE_DIR}/core/export
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/export/exporters
     ${CMAKE_CURRENT_SOURCE_DIR}/core/playback
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/playback/engines
     ${CMAKE_CURRENT_SOURCE_DIR}/core/subtitle
     ${CMAKE_CURRENT_SOURCE_DIR}/core/effects
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/effects/controllers
     ${CMAKE_CURRENT_SOURCE_DIR}/core/effects/models
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/vocal
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/ffmpeg/include
 )
 
@@ -240,6 +251,13 @@ endif()
 
 add_custom_command(TARGET VideoStudio POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/core/vocal/demucs_runner.py"
+        "$<TARGET_FILE_DIR:VideoStudio>/demucs_runner.py"
+    COMMENT "Copying Demucs runner"
+)
+
+add_custom_command(TARGET VideoStudio POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
         $<TARGET_FILE:Qt6::Widgets>
         $<TARGET_FILE:Qt6::Multimedia>
         $<TARGET_FILE:Qt6::QuickDialogs2>
@@ -267,7 +285,7 @@ add_custom_command(TARGET VideoStudio POST_BUILD
 
 add_executable(MediaItemProbe EXCLUDE_FROM_ALL
     tests/MediaItemProbe.cpp
-    core/media/MediaItem.cpp
+    core/media/models/MediaItem.cpp
 )
 
 target_link_libraries(MediaItemProbe PRIVATE
@@ -299,9 +317,9 @@ endif()
 
 add_executable(PlaybackProbe EXCLUDE_FROM_ALL
     tests/PlaybackProbe.cpp
-    core/playback/AudioEngine.cpp
-    core/playback/PlaybackEngine.cpp
-    core/effects/EffectProcessor.cpp
+    core/playback/engines/AudioEngine.cpp
+    core/playback/engines/PlaybackEngine.cpp
+    core/effects/processors/EffectProcessor.cpp
 )
 
 target_link_libraries(PlaybackProbe PRIVATE
@@ -349,14 +367,21 @@ add_custom_command(TARGET PlaybackProbe POST_BUILD
 
 add_executable(TimelineProbe EXCLUDE_FROM_ALL
     tests/TimelineProbe.cpp
-    ui/timeline_view/TimelineController.cpp
-    ui/timeline_view/TimelineController.h
-    core/timeline/TimelineClipModel.cpp
-    core/timeline/TimelineClipModel.h
+    core/timeline/commands/TimelineCommands.cpp
+    core/timeline/commands/TimelineCommands.h
+    ui/timeline_view/controllers/TimelineController.cpp
+    ui/timeline_view/controllers/TimelineController.h
+    core/actions/managers/ActionManager.cpp
+    core/actions/managers/ActionManager.h
+    core/vocal/VocalIsolator.cpp
+    core/vocal/VocalIsolator.h
+    core/timeline/models/TimelineClipModel.cpp
+    core/timeline/models/TimelineClipModel.h
 )
 
 target_link_libraries(TimelineProbe PRIVATE
     Qt6::Core
+    Qt6::Gui
     Qt6::Qml
 )
 
@@ -368,12 +393,18 @@ target_include_directories(TimelineProbe PRIVATE
 
 add_executable(TimelineQmlProbe EXCLUDE_FROM_ALL
     tests/TimelineQmlProbe.cpp
-    ui/timeline_view/TimelineController.cpp
-    ui/timeline_view/TimelineController.h
-    ui/timeline_view/ClipTrimController.cpp
-    ui/timeline_view/ClipTrimController.h
-    core/timeline/TimelineClipModel.cpp
-    core/timeline/TimelineClipModel.h
+    core/timeline/commands/TimelineCommands.cpp
+    core/timeline/commands/TimelineCommands.h
+    ui/timeline_view/controllers/TimelineController.cpp
+    ui/timeline_view/controllers/TimelineController.h
+    ui/timeline_view/controllers/ClipTrimController.cpp
+    ui/timeline_view/controllers/ClipTrimController.h
+    core/actions/managers/ActionManager.cpp
+    core/actions/managers/ActionManager.h
+    core/vocal/VocalIsolator.cpp
+    core/vocal/VocalIsolator.h
+    core/timeline/models/TimelineClipModel.cpp
+    core/timeline/models/TimelineClipModel.h
 )
 
 target_link_libraries(TimelineQmlProbe PRIVATE
@@ -392,25 +423,27 @@ target_include_directories(TimelineQmlProbe PRIVATE
 
 add_executable(ExportProbe EXCLUDE_FROM_ALL
     tests/ExportProbe.cpp
-    core/export/VideoExporter.cpp
-    core/export/VideoExporter.h
-    core/export/AdvancedSubtitleRenderer.cpp
-    core/export/AdvancedSubtitleRenderer.h
-    core/export/HardwareEncoder.h
-    core/export/NvidiaEncoder.cpp
-    core/export/NvidiaEncoder.h
-    core/export/AmdEncoder.cpp
-    core/export/AmdEncoder.h
-    core/export/IntelEncoder.cpp
-    core/export/IntelEncoder.h
-    core/export/HardwareDetector.cpp
-    core/export/HardwareDetector.h
+    core/export/exporters/VideoExporter.cpp
+    core/export/exporters/VideoExporter.h
+    core/export/renderers/AdvancedSubtitleRenderer.cpp
+    core/export/renderers/AdvancedSubtitleRenderer.h
+    core/export/encoders/HardwareEncoder.h
+    core/export/encoders/NvidiaEncoder.cpp
+    core/export/encoders/NvidiaEncoder.h
+    core/export/encoders/AmdEncoder.cpp
+    core/export/encoders/AmdEncoder.h
+    core/export/encoders/IntelEncoder.cpp
+    core/export/encoders/IntelEncoder.h
+    core/export/encoders/HardwareDetector.cpp
+    core/export/encoders/HardwareDetector.h
     core/subtitle/SrtParser.cpp
     core/subtitle/SrtParser.h
-    ui/timeline_view/TimelineController.cpp
-    ui/timeline_view/TimelineController.h
-    core/timeline/TimelineClipModel.cpp
-    core/timeline/TimelineClipModel.h
+    core/timeline/commands/TimelineCommands.cpp
+    core/timeline/commands/TimelineCommands.h
+    ui/timeline_view/controllers/TimelineController.cpp
+    ui/timeline_view/controllers/TimelineController.h
+    core/timeline/models/TimelineClipModel.cpp
+    core/timeline/models/TimelineClipModel.h
 )
 
 target_link_libraries(ExportProbe PRIVATE

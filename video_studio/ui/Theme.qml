@@ -12,4 +12,7 @@ QtObject {
     readonly property color surfaceDeep: "#111111"
     readonly property color divider: "#3a3a38"
     readonly property color dividerSoft: "#30302f"
+    readonly property color text: "#f0f8fa"
+    readonly property color textMuted: "#8fa2aa"
+    readonly property color accent: "#5ec4e8"
 }

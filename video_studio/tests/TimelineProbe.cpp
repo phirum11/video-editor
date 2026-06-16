@@ -1,4 +1,4 @@
-#include "ui/timeline_view/TimelineController.h"
+#include "ui/timeline_view/controllers/TimelineController.h"
 
 #include <QCoreApplication>
 #include <QVariantMap>
@@ -91,3 +91,4 @@ int main(int argc, char* argv[])
               << "endTime=" << timeline.endTimeSeconds() << '\n';
     return 0;
 }
+

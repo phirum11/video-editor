@@ -1,6 +1,5 @@
-#include "ui/timeline_view/TimelineController.h"
-#include "ui/timeline_view/ClipTrimController.h"
-
+#include "ui/timeline_view/controllers/TimelineController.h"
+#include "ui/timeline_view/controllers/ClipTrimController.h"
 #include <QGuiApplication>
 #include <QMetaObject>
 #include <QObject>
@@ -186,3 +185,4 @@ int main(int argc, char* argv[])
     delete root;
     return 0;
 }
+

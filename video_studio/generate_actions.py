@@ -1,7 +1,7 @@
 import os
 
 files = {
-    "core/actions/ActionManager.h": """#pragma once
+    "core/actions/managers/ActionManager.h": """#pragma once
 #include <QObject>
 #include <QVariantMap>
 #include <QMap>
@@ -28,7 +28,7 @@ private:
     QMap<QString, QVariantMap> m_actions;
 };
 """,
-    "core/actions/ActionManager.cpp": """#include "ActionManager.h"
+    "core/actions/managers/ActionManager.cpp": """#include "core/actions/managers/ActionManager.h"
 #include <QDebug>
 
 ActionManager& ActionManager::instance() {
@@ -60,7 +60,7 @@ QVariantMap ActionManager::getAction(const QString& id) const {
     return m_actions.value(id);
 }
 """,
-    "core/actions/MenuManager.h": """#pragma once
+    "core/actions/managers/MenuManager.h": """#pragma once
 #include <QObject>
 #include <QVariantList>
 
@@ -91,8 +91,8 @@ private:
     QVariantMap createSeparator();
 };
 """,
-    "core/actions/MenuManager.cpp": """#include "MenuManager.h"
-#include "ActionManager.h"
+    "core/actions/managers/MenuManager.cpp": """#include "core/actions/managers/MenuManager.h"
+#include "core/actions/managers/ActionManager.h"
 
 MenuManager& MenuManager::instance() {
     static MenuManager instance;
@@ -262,7 +262,7 @@ public:
 }};
 """
     cpp_code = f"""#include "{cat}Actions.h"
-#include "ActionManager.h"
+#include "core/actions/managers/ActionManager.h"
 #include <QDebug>
 
 {cat}Actions::{cat}Actions(QObject* parent) : QObject(parent) {{

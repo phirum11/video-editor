@@ -1,6 +1,6 @@
 #include "SubtitleController.h"
 #include "SrtParser.h"
-#include "ui/timeline_view/TimelineController.h"
+#include "ui/timeline_view/controllers/TimelineController.h"
 #include <QDebug>
 #include <QFileInfo>
 #include <algorithm>
@@ -135,3 +135,4 @@ QString SubtitleController::getSubtitleAtTime(TimelineController* timeline, doub
     
     return QString();
 }
+

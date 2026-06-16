@@ -2,7 +2,7 @@
 
 #include <QObject>
 #include <QtQml/qqmlregistration.h>
-#include "core/effects/EffectData.h"
+#include "core/effects/models/EffectData.h"
 
 class ColorEffect : public QObject
 {
