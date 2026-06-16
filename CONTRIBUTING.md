@@ -24,11 +24,34 @@ This section guides you through submitting an enhancement suggestion for Video S
 5. Issue that pull request!
 
 ## Setting Up Your Development Environment
-To build the project locally, you will need:
-- CMake (3.16+)
-- Qt 6 (Specifically tested on Qt 6.7.0 with MSVC / MinGW)
-- FFmpeg (Headers and binaries must be present in `third_party/ffmpeg`)
-- A C++17 compatible compiler
+To build the project locally, you will need to set up your C++ environment, Qt, and FFmpeg.
+
+### 1. Prerequisites
+- **CMake (3.16+)**
+- **A C++17 compatible compiler** (MinGW or MSVC for Windows, GCC for Linux, Clang for macOS)
+
+### 2. Installing Qt
+The project specifically requires **Qt 6.5 or higher** (tested primarily on 6.7.0).
+1. Download the [Qt Online Installer](https://www.qt.io/download-qt-installer).
+2. During installation, select a Qt 6 version and make sure to include the following modules:
+   - `Qt Core` / `Qt Gui` / `Qt Widgets`
+   - `Qt QML` / `Qt Quick` / `Qt Quick Controls 2` / `Qt Quick Dialogs 2`
+   - `Qt Multimedia`
+
+### 3. Setting up FFmpeg
+Because FFmpeg binaries are large, they are not included directly in the git repository. **You must download them manually** before CMake will configure successfully.
+1. Download the FFmpeg shared dev libraries for your platform.
+   - For Windows: We recommend downloading the `ffmpeg-master-latest-win64-gpl-shared.zip` from [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds/releases).
+2. Extract the files and place them inside the `video_studio/third_party/ffmpeg/` directory so your structure looks exactly like this:
+   ```
+   video_studio/
+   └── third_party/
+       └── ffmpeg/
+           ├── bin/      (contains avcodec-61.dll, etc.)
+           ├── include/  (contains libavcodec, libavformat headers)
+           └── lib/      (contains avcodec.lib, avformat.lib)
+   ```
+*(Note: CMake will automatically copy the `.dll` files from `bin/` to your build output directory after compiling).*
 
 ## Coding Guidelines
 - Please use clear variable names and keep functions small and focused.
