@@ -1,0 +1,746 @@
+pragma ComponentBehavior: Bound
+
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import QtQuick.Effects
+import VideoStudioUI
+
+Rectangle {
+    id: mediaPoolRoot
+
+    readonly property color panelTop: Theme.surface
+    readonly property color panelBody: Theme.background
+    readonly property color panelLine: Theme.divider
+    readonly property color textPrimary: "#dce4e7"
+    readonly property color textMuted: "#aeb9be"
+    readonly property color accent: "#66aacf"
+
+    color: mediaPoolRoot.panelBody
+    border.color: mediaPoolRoot.panelLine
+    border.width: 1
+    clip: true
+
+    property int currentTab: 0
+    property int selectedMediaIndex: -1
+    property string viewMode: "grid"
+    property real thumbnailZoom: 0.5
+    property var addedMediaPaths: ({})
+
+    signal mediaActivated(string name, string filePath, real duration, bool hasVideo, bool hasAudio)
+    signal mediaDeleted(string filePath)
+
+    function deleteSelectedMedia() {
+        if (selectedMediaIndex < 0)
+            return
+
+        const removedRow = selectedMediaIndex
+        if (mediaPoolController.removeMediaAt(removedRow)) {
+            selectedMediaIndex = mediaGrid.count > 0 ? Math.min(removedRow, mediaGrid.count - 1) : -1
+        }
+    }
+
+    function markMediaAdded(filePath) {
+        const nextPaths = {}
+        for (const path in addedMediaPaths)
+            nextPaths[path] = addedMediaPaths[path]
+        nextPaths[filePath] = true
+        addedMediaPaths = nextPaths
+    }
+
+    function forgetMediaAdded(filePath) {
+        const nextPaths = {}
+        for (const path in addedMediaPaths) {
+            if (path !== filePath)
+                nextPaths[path] = addedMediaPaths[path]
+        }
+        addedMediaPaths = nextPaths
+    }
+
+    function isMediaAdded(filePath) {
+        return addedMediaPaths[filePath] === true
+    }
+
+    function activateMedia(index, name, filePath, duration, hasVideo, hasAudio) {
+        selectedMediaIndex = index
+        markMediaAdded(filePath)
+        mediaActivated(name, filePath, duration, hasVideo, hasAudio)
+    }
+
+    function formatDuration(seconds) {
+        const safeSeconds = Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 0
+        const secs = safeSeconds % 60
+        const mins = Math.floor(safeSeconds / 60) % 60
+        const hours = Math.floor(safeSeconds / 3600)
+        return hours > 0
+            ? String(hours).padStart(2, "0") + ":" + String(mins).padStart(2, "0") + ":" + String(secs).padStart(2, "0")
+            : String(mins).padStart(2, "0") + ":" + String(secs).padStart(2, "0")
+    }
+
+    MediaPoolController {
+        id: mediaPoolController
+        onMediaRemoved: function(filePath) {
+            mediaPoolRoot.forgetMediaAdded(filePath)
+            mediaPoolRoot.mediaDeleted(filePath)
+        }
+    }
+
+    ColumnLayout {
+        anchors.fill: parent
+        spacing: 0
+
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 32
+            color: Theme.background
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 1
+                anchors.rightMargin: 1
+                spacing: 0
+
+                TabButton {
+                    text: qsTr("Project Browser")
+                    checked: mediaPoolRoot.currentTab === 0
+                    onClicked: mediaPoolRoot.currentTab = 0
+                }
+
+                TabButton {
+                    text: qsTr("Effect Hub")
+                    checked: mediaPoolRoot.currentTab === 1
+                    onClicked: mediaPoolRoot.currentTab = 1
+                }
+
+                TabButton {
+                    text: qsTr("AI Assist")
+                    checked: mediaPoolRoot.currentTab === 2
+                    onClicked: mediaPoolRoot.currentTab = 2
+                }
+
+                Item {
+                    Layout.fillWidth: true
+                }
+            }
+        }
+
+        StackLayout {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            currentIndex: mediaPoolRoot.currentTab
+
+            // Tab 0: Project Browser
+            ColumnLayout {
+                spacing: 0
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 68
+                    color: mediaPoolRoot.panelTop
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 10
+                        anchors.rightMargin: 10
+                        anchors.topMargin: 6
+                        anchors.bottomMargin: 7
+                        spacing: 6
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 7
+
+                            Image {
+                                Layout.preferredWidth: 16
+                                Layout.preferredHeight: 16
+                                source: "qrc:/VideoStudioUI/assets/folder.svg"
+                                opacity: 0.85
+                            }
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: qsTr("No project loaded")
+                                color: mediaPoolRoot.textMuted
+                                font.pixelSize: 13
+                                elide: Text.ElideRight
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 26
+                                radius: 3
+                                color: Theme.surfaceInset
+                                border.color: searchInput.activeFocus ? mediaPoolRoot.accent : Theme.dividerSoft
+                                border.width: 1
+
+                                Text {
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: 9
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: "\u2315"
+                                    color: "#9badb5"
+                                    font.pixelSize: 14
+                                }
+
+                                TextField {
+                                    id: searchInput
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: 28
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: 7
+                                    anchors.top: parent.top
+                                    anchors.bottom: parent.bottom
+                                    placeholderText: qsTr("Search")
+                                    color: mediaPoolRoot.textPrimary
+                                    placeholderTextColor: "#6f8188"
+                                    font.pixelSize: 13
+                                    selectByMouse: true
+                                    background: Item {}
+                                }
+                            }
+
+                            AbstractButton {
+                                id: deleteButton
+                                text: qsTr("Delete")
+                                implicitWidth: 64
+                                implicitHeight: 26
+                                enabled: mediaPoolRoot.selectedMediaIndex >= 0
+                                hoverEnabled: enabled
+                                opacity: enabled ? 1 : 0.42
+
+                                background: Rectangle {
+                                    radius: 3
+                                    color: deleteButton.hovered ? "#3a2528" : "transparent"
+                                    border.color: deleteButton.hovered ? "#8c4a55" : "transparent"
+                                    border.width: 1
+                                }
+
+                                contentItem: Text {
+                                    text: deleteButton.text
+                                    color: deleteButton.hovered ? "#ffdce1" : mediaPoolRoot.textMuted
+                                    font.pixelSize: 13
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+                                onClicked: mediaPoolRoot.deleteSelectedMedia()
+                            }
+
+                            AbstractButton {
+                                id: importButton
+                                text: qsTr("Import")
+                                implicitWidth: 72
+                                implicitHeight: 26
+                                hoverEnabled: true
+
+                                background: Rectangle {
+                                    radius: 3
+                                    color: importButton.hovered ? "#293b44" : "transparent"
+                                    border.color: importButton.hovered ? "#486a7d" : "transparent"
+                                    border.width: 1
+                                }
+
+                                contentItem: Text {
+                                    text: importButton.text
+                                    color: importButton.hovered ? mediaPoolRoot.textPrimary : mediaPoolRoot.textMuted
+                                    font.pixelSize: 13
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+                                onClicked: mediaPoolController.importMediaFiles()
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    color: mediaPoolRoot.panelBody
+                    border.color: Theme.dividerSoft
+                    border.width: 1
+                    clip: true
+
+                    DropArea {
+                        anchors.fill: parent
+                        onDropped: function(drop) {
+                            if (!drop.urls || drop.urls.length === 0)
+                                return
+
+                            for (let i = 0; i < drop.urls.length; ++i)
+                                mediaPoolController.importMediaFileUrl(drop.urls[i])
+
+                            drop.acceptProposedAction()
+                        }
+                    }
+
+                    GridView {
+                        id: mediaGrid
+                        anchors.fill: parent
+                        anchors.margins: 12
+                        cellWidth: mediaPoolRoot.viewMode === "list"
+                            ? Math.max(120, width - 16)
+                            : Math.round(104 + mediaPoolRoot.thumbnailZoom * 120)
+                        cellHeight: mediaPoolRoot.viewMode === "list"
+                            ? 62
+                            : Math.round(96 + mediaPoolRoot.thumbnailZoom * 98)
+                        model: mediaPoolController.mediaModel
+                        currentIndex: mediaPoolRoot.selectedMediaIndex
+                        visible: count > 0
+                        clip: true
+                        onCountChanged: {
+                            if (count === 0)
+                                mediaPoolRoot.selectedMediaIndex = -1
+                            else if (mediaPoolRoot.selectedMediaIndex >= count)
+                                mediaPoolRoot.selectedMediaIndex = count - 1
+                        }
+
+                        ScrollBar.vertical: ScrollBar {
+                            policy: ScrollBar.AsNeeded
+                        }
+
+                        delegate: Item {
+                            id: mediaDelegate
+                            required property int index
+                            required property string name
+                            required property string filePath
+                            required property real duration
+                            required property bool hasVideo
+                            required property bool hasAudio
+
+                            readonly property string mediaName: name
+                            readonly property string mediaFilePath: filePath
+                            readonly property real mediaDuration: duration
+                            readonly property bool mediaHasVideo: hasVideo
+                            readonly property bool mediaHasAudio: hasAudio
+                            property bool isRenaming: false
+                            readonly property bool listMode: mediaPoolRoot.viewMode === "list"
+                            readonly property bool addedToTimeline: mediaPoolRoot.isMediaAdded(filePath)
+                            readonly property bool cardHovered: delegateHover.hovered || dragMouse.containsMouse || quickAddButton.hovered
+                            readonly property real thumbnailWidth: listMode
+                                ? 72
+                                : Math.max(84, mediaGrid.cellWidth - 20)
+                            readonly property real thumbnailHeight: listMode
+                                ? 44
+                                : Math.max(52, mediaGrid.cellHeight - 54)
+
+                            width: mediaGrid.cellWidth
+                            height: mediaGrid.cellHeight
+                            z: dragMouse.drag.active ? 10 : 0
+
+                            HoverHandler {
+                                id: delegateHover
+                            }
+
+                            Rectangle {
+                                id: thumbnail
+                                x: mediaDelegate.listMode ? 8 : (parent.width - width) / 2
+                                y: mediaDelegate.listMode ? 8 : 0
+                                width: mediaDelegate.thumbnailWidth
+                                height: mediaDelegate.thumbnailHeight
+                                radius: 6
+                                color: mediaDelegate.cardHovered ? "#253139" : "#20292f"
+                                border.color: GridView.isCurrentItem
+                                    ? mediaPoolRoot.accent
+                                    : (mediaDelegate.cardHovered ? "#435b66" : "transparent")
+                                border.width: GridView.isCurrentItem || mediaDelegate.cardHovered ? 1 : 0
+                                clip: true
+
+                                Image {
+                                    id: thumbImage
+                                    anchors.fill: parent
+                                    anchors.margins: 1
+                                    source: "image://media/" + encodeURIComponent(mediaDelegate.filePath)
+                                    sourceSize.width: Math.ceil(thumbnail.width)
+                                    sourceSize.height: Math.ceil(thumbnail.height)
+                                    asynchronous: true
+                                    fillMode: Image.PreserveAspectCrop
+                                    visible: false
+                                }
+
+                                Rectangle {
+                                    id: maskRect
+                                    anchors.fill: parent
+                                    anchors.margins: 1
+                                    radius: 5
+                                    color: "black"
+                                    visible: false
+                                    layer.enabled: true
+                                }
+
+                                MultiEffect {
+                                    anchors.fill: thumbImage
+                                    source: thumbImage
+                                    maskEnabled: true
+                                    maskSource: maskRect
+                                }
+
+                                Rectangle {
+                                    anchors.fill: parent
+                                    color: "transparent"
+                                    border.color: "#000000"
+                                    border.width: 1
+                                    opacity: 0.2
+                                    radius: parent.radius
+                                }
+                            }
+
+                            Rectangle {
+                                id: dragProxy
+                                readonly property var sourceMedia: mediaDelegate
+                                readonly property string mediaName: mediaDelegate.mediaName
+                                readonly property string mediaFilePath: mediaDelegate.mediaFilePath
+                                readonly property real mediaDuration: mediaDelegate.mediaDuration
+                                readonly property bool mediaHasVideo: mediaDelegate.mediaHasVideo
+                                readonly property bool mediaHasAudio: mediaDelegate.mediaHasAudio
+
+                                x: thumbnail.x
+                                y: thumbnail.y
+                                width: thumbnail.width
+                                height: thumbnail.height
+                                radius: 2
+                                visible: dragMouse.drag.active
+                                opacity: 0.82
+                                color: "#12242d"
+                                border.color: mediaPoolRoot.accent
+                                border.width: 1
+
+                                Drag.active: dragMouse.drag.active
+                                Drag.source: dragProxy
+                                Drag.keys: ["videoStudio/media"]
+                                Drag.supportedActions: Qt.CopyAction
+                                Drag.hotSpot.x: width / 2
+                                Drag.hotSpot.y: height / 2
+
+                                Image {
+                                    anchors.fill: parent
+                                    anchors.margins: 1
+                                    source: "image://media/" + encodeURIComponent(mediaDelegate.filePath)
+                                    sourceSize.width: Math.ceil(thumbnail.width)
+                                    sourceSize.height: Math.ceil(thumbnail.height)
+                                    fillMode: Image.PreserveAspectCrop
+                                }
+                            }
+
+                            Rectangle {
+                                id: addedBadge
+                                x: thumbnail.x + 5
+                                y: thumbnail.y + 5
+                                width: addedBadgeLabel.implicitWidth + 10
+                                height: 18
+                                radius: 3
+                                visible: mediaDelegate.addedToTimeline
+                                color: "#111417"
+                                z: 4
+
+                                Text {
+                                    id: addedBadgeLabel
+                                    anchors.centerIn: parent
+                                    text: qsTr("Added")
+                                    color: "#e8f2f4"
+                                    font.pixelSize: 11
+                                }
+                            }
+
+                            Rectangle {
+                                id: durationBadge
+                                x: thumbnail.x + thumbnail.width - width - 5
+                                y: thumbnail.y + 5
+                                width: durationLabel.implicitWidth + 10
+                                height: 18
+                                radius: 3
+                                visible: mediaDelegate.mediaDuration > 0
+                                color: "#000000"
+                                opacity: 0.72
+                                z: 4
+
+                                Text {
+                                    id: durationLabel
+                                    anchors.centerIn: parent
+                                    text: mediaPoolRoot.formatDuration(mediaDelegate.mediaDuration)
+                                    color: "#f0f8fa"
+                                    font.pixelSize: 11
+                                }
+                            }
+
+                            AbstractButton {
+                                id: quickAddButton
+                                x: thumbnail.x + thumbnail.width - width - 7
+                                y: thumbnail.y + thumbnail.height - height - 7
+                                width: 22
+                                height: 22
+                                visible: mediaDelegate.cardHovered && !dragMouse.drag.active
+                                hoverEnabled: true
+                                z: 5
+
+                                background: Rectangle {
+                                    radius: width / 2
+                                    color: quickAddButton.pressed ? "#11aebf" : "#17c9d7"
+                                    border.color: "#adfbff"
+                                    border.width: quickAddButton.hovered ? 1 : 0
+                                }
+
+                                contentItem: Text {
+                                    text: "+"
+                                    color: "#ffffff"
+                                    font.pixelSize: 18
+                                    font.weight: Font.DemiBold
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+
+                                onClicked: mediaPoolRoot.activateMedia(
+                                    mediaDelegate.index,
+                                    mediaDelegate.mediaName,
+                                    mediaDelegate.mediaFilePath,
+                                    mediaDelegate.mediaDuration,
+                                    mediaDelegate.mediaHasVideo,
+                                    mediaDelegate.mediaHasAudio
+                                )
+                            }
+
+                            Text {
+                                id: nameText
+                                x: mediaDelegate.listMode ? thumbnail.x + thumbnail.width + 10 : thumbnail.x
+                                y: mediaDelegate.listMode
+                                    ? Math.round((parent.height - height) / 2)
+                                    : thumbnail.y + thumbnail.height + 8
+                                width: mediaDelegate.listMode
+                                    ? parent.width - x - 10
+                                    : thumbnail.width
+                                height: 18
+                                text: mediaDelegate.name
+                                color: mediaPoolRoot.textPrimary   
+                                font.pixelSize: 12     
+                                horizontalAlignment: mediaDelegate.listMode ? Text.AlignLeft : Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter    
+                                elide: Text.ElideRight
+                                visible: !mediaDelegate.isRenaming    
+                            }
+
+                            TextField {    
+                                id: renameInput
+                                x: nameText.x - 4
+                                y: nameText.y - 2    
+                                width: nameText.width + 8
+                                height: nameText.height + 4
+                                text: mediaDelegate.name    
+                                visible: mediaDelegate.isRenaming
+                                color: mediaPoolRoot.textPrimary
+                                font.pixelSize: 12    
+                                horizontalAlignment: mediaDelegate.listMode ? TextInput.AlignLeft : TextInput.AlignHCenter
+                                verticalAlignment: TextInput.AlignVCenter
+                                background: Rectangle {
+                                    color: "#1a1a1a"    
+                                    border.color: mediaPoolRoot.accent
+                                    border.width: 1   
+                                    radius: 2
+                                }     
+                                onEditingFinished: {
+                                    if (mediaDelegate.isRenaming) {
+                                        mediaPoolController.renameMediaAt(mediaDelegate.index, text)
+                                        mediaDelegate.isRenaming = false
+                                    }
+                                }
+                                onActiveFocusChanged: {     
+                                    if (!activeFocus && mediaDelegate.isRenaming) {
+                                        mediaPoolController.renameMediaAt(mediaDelegate.index, text)
+                                        mediaDelegate.isRenaming = false
+                                    }
+                                }
+                            }
+
+                            Menu {
+                                id: contextMenu
+                                
+                                background: Rectangle {
+                                    implicitWidth: 180
+                                    color: "#282828"
+                                    radius: 6
+                                    border.color: "#383838"
+                                    border.width: 1
+                                }
+                                
+                                MenuItem {
+                                    id: itemOpen
+                                    text: "Open file location"
+                                    implicitHeight: 32
+                                    contentItem: Text {
+                                        leftPadding: 16
+                                        text: itemOpen.text
+                                        color: itemOpen.highlighted ? "#ffffff" : "#cddbe2"
+                                        font.pixelSize: 13
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                    background: Rectangle {
+                                        color: itemOpen.highlighted ? "#383838" : "transparent"
+                                        radius: 4
+                                        anchors.fill: parent
+                                        anchors.margins: 4
+                                    }
+                                    onTriggered: mediaPoolController.openFileLocation(mediaDelegate.index)
+                                }
+                                
+                                MenuItem {
+                                    id: itemRename
+                                    text: "Rename"
+                                    implicitHeight: 32
+                                    contentItem: Text {
+                                        leftPadding: 16
+                                        text: itemRename.text
+                                        color: itemRename.highlighted ? "#ffffff" : "#cddbe2"
+                                        font.pixelSize: 13
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                    background: Rectangle {
+                                        color: itemRename.highlighted ? "#383838" : "transparent"
+                                        radius: 4
+                                        anchors.fill: parent
+                                        anchors.margins: 4
+                                    }
+                                    onTriggered: {
+                                        mediaDelegate.isRenaming = true
+                                        renameInput.forceActiveFocus()
+                                    }
+                                }
+                                
+                                MenuItem {
+                                    id: itemDelete
+                                    text: "Delete"
+                                    implicitHeight: 32
+                                    contentItem: Text {
+                                        leftPadding: 16
+                                        text: itemDelete.text
+                                        color: itemDelete.highlighted ? "#ffffff" : "#cddbe2"
+                                        font.pixelSize: 13
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                    background: Rectangle {
+                                        color: itemDelete.highlighted ? "#383838" : "transparent"
+                                        radius: 4
+                                        anchors.fill: parent
+                                        anchors.margins: 4
+                                    }
+                                    onTriggered: mediaPoolRoot.deleteSelectedMedia()
+                                }
+                            }
+
+                            MouseArea {
+                                id: dragMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                drag.target: dragProxy
+                                drag.threshold: 8
+
+                                onPressed: (mouse) => {
+                                    mediaPoolRoot.selectedMediaIndex = mediaDelegate.index
+                                }
+                                onClicked: (mouse) => {
+                                    mediaPoolRoot.selectedMediaIndex = mediaDelegate.index
+                                    if (mouse.button === Qt.RightButton) {
+                                        contextMenu.popup()
+                                    }
+                                }
+                                onDoubleClicked: mediaPoolRoot.activateMedia(
+                                    mediaDelegate.index,
+                                    mediaDelegate.mediaName,
+                                    mediaDelegate.mediaFilePath,
+                                    mediaDelegate.mediaDuration,
+                                    mediaDelegate.mediaHasVideo,
+                                    mediaDelegate.mediaHasAudio
+                                )
+                                onReleased: {
+                                    dragProxy.x = thumbnail.x
+                                    dragProxy.y = thumbnail.y
+                                }
+                                onCanceled: {
+                                    dragProxy.x = thumbnail.x
+                                    dragProxy.y = thumbnail.y
+                                }
+                            }
+                        }
+                    }
+
+                    ColumnLayout {
+                        anchors.centerIn: parent
+                        width: Math.min(parent.width - 48, 230)
+                        spacing: 10
+                        visible: mediaGrid.count === 0
+
+                        Image {
+                            Layout.alignment: Qt.AlignHCenter
+                            Layout.preferredWidth: 38
+                            Layout.preferredHeight: 38
+                            source: "qrc:/VideoStudioUI/assets/folder.svg"
+                            opacity: 0.32
+                        }
+
+                        Text {
+                            Layout.fillWidth: true
+                            text: qsTr("No media imported")
+                            color: "#7f9199"
+                            font.pixelSize: 13
+                            horizontalAlignment: Text.AlignHCenter
+                            wrapMode: Text.WordWrap
+                        }
+                    }
+                }
+
+                MediaPoolFooter {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 34
+                    viewMode: mediaPoolRoot.viewMode
+                    zoomValue: mediaPoolRoot.thumbnailZoom
+                    panelLine: Theme.divider
+                    textPrimary: mediaPoolRoot.textPrimary
+                    textMuted: mediaPoolRoot.textMuted
+                    accent: mediaPoolRoot.accent
+                    onViewModeRequested: function(mode) { mediaPoolRoot.viewMode = mode }
+                    onZoomValueRequested: function(value) { mediaPoolRoot.thumbnailZoom = value }
+                }
+            }
+
+            // Tab 1: Effect Hub
+            EffectHub {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+            }
+
+            // Tab 2: AI Assist
+            AIAssist {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+            }
+        }
+    }
+    component TabButton: AbstractButton {
+        id: tab
+        implicitWidth: Math.max(tabLabel.implicitWidth + 20, 82)
+        implicitHeight: 32
+        Layout.minimumWidth: 62
+        Layout.preferredWidth: implicitWidth
+        hoverEnabled: true
+
+        background: Rectangle {
+            color: tab.checked ? mediaPoolRoot.panelTop : tab.hovered ? Theme.surfaceHover : Theme.background
+            border.color: tab.checked ? mediaPoolRoot.panelLine : "transparent"
+            border.width: tab.checked ? 1 : 0
+        }
+
+        contentItem: Text {
+            id: tabLabel
+            text: tab.text
+            color: tab.checked ? mediaPoolRoot.textPrimary : "#89979d"
+            font.pixelSize: 13
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+        }
+    }
+
+}
