@@ -1,8 +1,12 @@
-# Video Studio Pro 🎬
+<p align="center">
+  <img src="https://github.com/phirum11/video-editor/raw/master/screenshot.png" alt="Video Studio Pro UI">
+</p>
 
-A modern, high-performance video editor built with C++, Qt, and QML. Video Studio Pro features a sleek, dark-themed user interface inspired by industry-leading editing software.
+<h1 align="center">Video Studio Pro 🎬</h1>
 
-![Video Studio Pro UI](https://github.com/phirum11/video-editor/raw/master/screenshot.png)
+<p align="center">
+  A modern, high-performance video editor built with C++, Qt, and QML. Video Studio Pro features a sleek, dark-themed user interface inspired by industry-leading editing software.
+</p>
 
 ## ✨ Features
 
