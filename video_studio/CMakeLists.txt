@@ -70,6 +70,13 @@ qt_add_qml_module(VideoStudio
         ui/timeline_view/components/AudioMeter.qml
         ui/settings/TimelineSettingsMenu.qml
         ui/main_setting/MainSettings.qml
+        ui/main_setting/components/SidebarItem.qml
+        ui/main_setting/components/SettingsCard.qml
+        ui/main_setting/components/SettingsRow.qml
+        ui/main_setting/components/SettingsToggleRow.qml
+        ui/main_setting/components/ShortcutRow.qml
+        ui/main_setting/components/SettingsComboBoxRow.qml
+        ui/main_setting/components/SettingsColorRow.qml
     RESOURCES
         assets/check.svg
         assets/chevron-down.svg

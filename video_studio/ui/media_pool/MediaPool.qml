@@ -213,6 +213,8 @@ Rectangle {
                                 hoverEnabled: enabled
                                 opacity: enabled ? 1 : 0.42
 
+                                HoverHandler { cursorShape: Qt.PointingHandCursor }
+
                                 background: Rectangle {
                                     radius: 3
                                     color: deleteButton.hovered ? "#3a2528" : "transparent"
@@ -236,6 +238,8 @@ Rectangle {
                                 implicitWidth: 72
                                 implicitHeight: 26
                                 hoverEnabled: true
+
+                                HoverHandler { cursorShape: Qt.PointingHandCursor }
 
                                 background: Rectangle {
                                     radius: 3
@@ -633,6 +637,7 @@ Rectangle {
                                 id: dragMouse
                                 anchors.fill: parent
                                 hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
                                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                                 drag.target: dragProxy
                                 drag.threshold: 8
@@ -725,6 +730,8 @@ Rectangle {
         Layout.minimumWidth: 62
         Layout.preferredWidth: implicitWidth
         hoverEnabled: true
+
+        HoverHandler { cursorShape: Qt.PointingHandCursor }
 
         background: Rectangle {
             color: tab.checked ? mediaPoolRoot.panelTop : tab.hovered ? Theme.surfaceHover : Theme.background

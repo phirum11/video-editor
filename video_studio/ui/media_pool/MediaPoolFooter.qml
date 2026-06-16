@@ -151,6 +151,8 @@ Rectangle {
         implicitHeight: 24
         hoverEnabled: true
 
+        HoverHandler { cursorShape: Qt.PointingHandCursor }
+
         ToolTip.visible: hovered && toolTipText !== ""
         ToolTip.text: toolTipText
 
@@ -216,6 +218,7 @@ Rectangle {
             id: toggleMouse
             anchors.fill: parent
             hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
             onClicked: settingsToggle.checked = !settingsToggle.checked
         }
     }
@@ -242,6 +245,7 @@ Rectangle {
             id: actionMouse
             anchors.fill: parent
             hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
         }
     }
 }

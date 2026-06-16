@@ -125,7 +125,7 @@ Rectangle {
                         anchors.centerIn: parent
                         Text {
                             text: "Menu"
-                            color: menuBtn.highlighted || menuBtn.hovered || mainMenu.opened ? headerRoot.textPrimary : headerRoot.textMuted
+                            color: menuBtn.hovered || mainMenu.opened ? headerRoot.textPrimary : headerRoot.textMuted
                             font.pixelSize: 14
                         }
                         Image {
@@ -133,7 +133,7 @@ Rectangle {
                             Layout.preferredWidth: 12
                             Layout.preferredHeight: 12
                             source: mainMenu.opened ? "qrc:/VideoStudioUI/assets/chevron-up.svg" : "qrc:/VideoStudioUI/assets/chevron-down.svg"
-                            opacity: menuBtn.highlighted || menuBtn.hovered || mainMenu.opened ? 1.0 : 0.7
+                            opacity: menuBtn.hovered || mainMenu.opened ? 1.0 : 0.7
                         }
                     }
                     
@@ -162,10 +162,13 @@ Rectangle {
                         Component {
                             id: actionComp
                             AppMenuItem {
-                                property string actionId
+                                id: compItem
+                                property string customActionId
+                                // qmllint disable unqualified
                                 onTriggered: {
-                                    if (typeof ActionManager !== "undefined") ActionManager.executeAction(actionId)
+                                    if (typeof ActionManager !== "undefined") ActionManager.executeAction(compItem.customActionId)
                                 }
+                                // qmllint enable unqualified
                             }
                         }
 
@@ -182,7 +185,7 @@ Rectangle {
                                         let sep = Qt.createQmlObject('import QtQuick; import QtQuick.Controls; import VideoStudioUI; MenuSeparator { contentItem: Rectangle { implicitHeight: 1; color: Theme.divider } }', parentMenu);
                                         parentMenu.addItem(sep);
                                     } else if (itemData.type === "action") {
-                                        let action = actionComp.createObject(null, {text: itemData.text, shortcutText: itemData.shortcut, actionId: itemData.actionId});
+                                        let action = actionComp.createObject(null, {text: itemData.text, shortcutText: itemData.shortcut, customActionId: itemData.actionId});
                                         parentMenu.addItem(action);
                                     } else if (itemData.type === "submenu") {
                                         let subMenu = subMenuComp.createObject(null, {title: itemData.title});
@@ -421,6 +424,8 @@ Rectangle {
         implicitHeight: 26
         hoverEnabled: true
 
+        HoverHandler { cursorShape: Qt.PointingHandCursor }
+
         background: Rectangle {
             radius: 3
             color: actionChip.hovered ? Theme.surfaceHover : Theme.surfaceRaised
@@ -446,6 +451,8 @@ Rectangle {
         implicitWidth: iconRow.implicitWidth + 14
         implicitHeight: 28
         hoverEnabled: true
+
+        HoverHandler { cursorShape: Qt.PointingHandCursor }
 
         background: Rectangle {
             radius: 3
@@ -483,6 +490,8 @@ Rectangle {
         implicitWidth: 46
         implicitHeight: 29
         hoverEnabled: true
+
+        HoverHandler { cursorShape: Qt.PointingHandCursor }
 
         background: Rectangle {
             color: windowButton.danger && windowButton.hovered ? "#e81123" :

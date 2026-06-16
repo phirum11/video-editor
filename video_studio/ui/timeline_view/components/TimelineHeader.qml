@@ -181,6 +181,9 @@ Rectangle {
             Layout.preferredWidth: 24
             Layout.preferredHeight: 24
             hoverEnabled: true
+
+            HoverHandler { cursorShape: Qt.PointingHandCursor }
+
             enabled: headerRoot.zoomValue > 0
             ToolTip.visible: hovered
             ToolTip.text: qsTr("Zoom Out")
@@ -261,6 +264,9 @@ Rectangle {
             Layout.preferredWidth: 24
             Layout.preferredHeight: 24
             hoverEnabled: true
+
+            HoverHandler { cursorShape: Qt.PointingHandCursor }
+
             enabled: headerRoot.zoomValue < 1
             ToolTip.visible: hovered
             ToolTip.text: qsTr("Zoom In")
@@ -317,6 +323,8 @@ Rectangle {
         Layout.preferredHeight: 24
         hoverEnabled: true
         opacity: enabled ? 1.0 : 0.38
+
+        HoverHandler { cursorShape: Qt.PointingHandCursor }
 
         ToolTip.visible: hovered && toolTipText !== ""
         ToolTip.text: toolTipText

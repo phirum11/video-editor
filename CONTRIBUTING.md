@@ -4,6 +4,8 @@ First off, thank you for considering contributing to Video Studio! It's people l
 
 ## How Can I Contribute?
 
+As a contributor, you are highly encouraged to push code, fix bugs, add new features, and help improve the project overall. All contributions are welcome!
+
 ### Reporting Bugs
 This section guides you through submitting a bug report for Video Studio.
 - Ensure the bug was not already reported by searching on GitHub under Issues.

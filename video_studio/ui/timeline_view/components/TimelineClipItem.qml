@@ -364,7 +364,7 @@ Rectangle {
             }
         }
     }
-
+    
     function formatDuration(seconds) {
         const safeSeconds = Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 0
         const secs = safeSeconds % 60
@@ -380,7 +380,9 @@ Rectangle {
         clipIndex: clipRoot.clipIndex
         vocalIsolationType: clipRoot.vocalIsolationType
         // Resolve timelineController from parent scope (TimelineTracks.qml has backend)
+        // qmllint disable unqualified
         timelineController: typeof backend !== "undefined" ? backend : null
+        // qmllint enable unqualified
     }
 
     Rectangle {

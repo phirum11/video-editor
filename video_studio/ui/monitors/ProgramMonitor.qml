@@ -387,6 +387,8 @@ Rectangle {
         implicitHeight: transportButton.primary ? 26 : 22
         hoverEnabled: true
 
+        HoverHandler { cursorShape: Qt.PointingHandCursor }
+
         ToolTip.visible: hovered && toolTipText !== ""
         ToolTip.text: toolTipText
 
