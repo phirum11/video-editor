@@ -6,16 +6,35 @@
 #include <QDir>
 #include <QDesktopServices>
 #include <memory>
+#include <QSortFilterProxyModel>
+#include <QRegularExpression>
 #include "core/media/models/MediaItem.h"
 
 MediaPoolController::MediaPoolController(QObject *parent)
-    : QObject(parent), m_mediaModel(new MediaListModel(this))
+    : QObject(parent), m_mediaModel(new MediaListModel(this)), m_proxyModel(new QSortFilterProxyModel(this))
 {
+    m_proxyModel->setSourceModel(m_mediaModel);
+    m_proxyModel->setFilterRole(MediaListModel::NameRole);
+    m_proxyModel->setFilterCaseSensitivity(Qt::CaseInsensitive);
 }
 
-QAbstractListModel* MediaPoolController::mediaModel() const
+QAbstractItemModel* MediaPoolController::mediaModel() const
 {
-    return m_mediaModel;
+    return m_proxyModel;
+}
+
+QString MediaPoolController::searchQuery() const
+{
+    return m_searchQuery;
+}
+
+void MediaPoolController::setSearchQuery(const QString& query)
+{
+    if (m_searchQuery != query) {
+        m_searchQuery = query;
+        m_proxyModel->setFilterRegularExpression(QRegularExpression(QRegularExpression::escape(query), QRegularExpression::CaseInsensitiveOption));
+        emit searchQueryChanged();
+    }
 }
 
 void MediaPoolController::importMediaFiles()
@@ -57,9 +76,13 @@ void MediaPoolController::importMediaFileUrl(const QUrl& fileUrl)
 
 bool MediaPoolController::removeMediaAt(int row)
 {
-    const QModelIndex mediaIndex = m_mediaModel->index(row, 0);
-    const QString filePath = m_mediaModel->data(mediaIndex, MediaListModel::FilePathRole).toString();
-    const bool removed = m_mediaModel->removeMediaItem(row);
+    const QModelIndex proxyIndex = m_proxyModel->index(row, 0);
+    if (!proxyIndex.isValid()) return false;
+    const QModelIndex sourceIndex = m_proxyModel->mapToSource(proxyIndex);
+    const int sourceRow = sourceIndex.row();
+
+    const QString filePath = m_mediaModel->data(sourceIndex, MediaListModel::FilePathRole).toString();
+    const bool removed = m_mediaModel->removeMediaItem(sourceRow);
     if (removed) {
         emit mediaRemoved(filePath);
     }
@@ -68,8 +91,10 @@ bool MediaPoolController::removeMediaAt(int row)
 
 void MediaPoolController::openFileLocation(int row)
 {
-    const QModelIndex mediaIndex = m_mediaModel->index(row, 0);
-    const QString filePath = m_mediaModel->data(mediaIndex, MediaListModel::FilePathRole).toString();
+    const QModelIndex proxyIndex = m_proxyModel->index(row, 0);
+    if (!proxyIndex.isValid()) return;
+    const QModelIndex sourceIndex = m_proxyModel->mapToSource(proxyIndex);
+    const QString filePath = m_mediaModel->data(sourceIndex, MediaListModel::FilePathRole).toString();
     if (!filePath.isEmpty()) {
         #ifdef Q_OS_WIN
         const QString explorer = "explorer.exe";
@@ -85,7 +110,10 @@ void MediaPoolController::openFileLocation(int row)
 
 bool MediaPoolController::renameMediaAt(int row, const QString& newName)
 {
-    return m_mediaModel->renameMediaItem(row, newName);
+    const QModelIndex proxyIndex = m_proxyModel->index(row, 0);
+    if (!proxyIndex.isValid()) return false;
+    const QModelIndex sourceIndex = m_proxyModel->mapToSource(proxyIndex);
+    return m_mediaModel->renameMediaItem(sourceIndex.row(), newName);
 }
 
 bool MediaPoolController::addMediaPath(const QString& filePath)

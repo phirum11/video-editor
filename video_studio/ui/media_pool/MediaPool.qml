@@ -112,11 +112,7 @@ Rectangle {
                     onClicked: mediaPoolRoot.currentTab = 1
                 }
 
-                TabButton {
-                    text: qsTr("AI Assist")
-                    checked: mediaPoolRoot.currentTab === 2
-                    onClicked: mediaPoolRoot.currentTab = 2
-                }
+
 
                 Item {
                     Layout.fillWidth: true
@@ -201,6 +197,7 @@ Rectangle {
                                     font.pixelSize: 13
                                     selectByMouse: true
                                     background: Item {}
+                                    onTextChanged: mediaPoolController.searchQuery = text
                                 }
                             }
 
@@ -393,6 +390,10 @@ Rectangle {
                                 }
                             }
 
+                            Item {
+                                id: dragTargetDummy
+                            }
+
                             Rectangle {
                                 id: dragProxy
                                 readonly property var sourceMedia: mediaDelegate
@@ -402,18 +403,23 @@ Rectangle {
                                 readonly property bool mediaHasVideo: mediaDelegate.mediaHasVideo
                                 readonly property bool mediaHasAudio: mediaDelegate.mediaHasAudio
 
-                                x: thumbnail.x
-                                y: thumbnail.y
+                                property point startOverlayPos: Qt.point(0, 0)
+                                property bool isDragging: false
+
+                                parent: isDragging ? Overlay.overlay : mediaDelegate
+                                x: isDragging ? startOverlayPos.x + dragTargetDummy.x : thumbnail.x
+                                y: isDragging ? startOverlayPos.y + dragTargetDummy.y : thumbnail.y
                                 width: thumbnail.width
                                 height: thumbnail.height
                                 radius: 2
-                                visible: dragMouse.drag.active
+                                visible: isDragging
                                 opacity: 0.82
                                 color: "#12242d"
                                 border.color: mediaPoolRoot.accent
                                 border.width: 1
+                                z: 99999
 
-                                Drag.active: dragMouse.drag.active
+                                Drag.active: isDragging
                                 Drag.source: dragProxy
                                 Drag.keys: ["videoStudio/media"]
                                 Drag.supportedActions: Qt.CopyAction
@@ -639,11 +645,17 @@ Rectangle {
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
                                 acceptedButtons: Qt.LeftButton | Qt.RightButton
-                                drag.target: dragProxy
+                                drag.target: dragTargetDummy
                                 drag.threshold: 8
 
                                 onPressed: (mouse) => {
                                     mediaPoolRoot.selectedMediaIndex = mediaDelegate.index
+                                }
+                                onPositionChanged: {
+                                    if (drag.active && !dragProxy.isDragging) {
+                                        dragProxy.startOverlayPos = thumbnail.mapToItem(Overlay.overlay, 0, 0)
+                                        dragProxy.isDragging = true
+                                    }
                                 }
                                 onClicked: (mouse) => {
                                     mediaPoolRoot.selectedMediaIndex = mediaDelegate.index
@@ -660,12 +672,17 @@ Rectangle {
                                     mediaDelegate.mediaHasAudio
                                 )
                                 onReleased: {
-                                    dragProxy.x = thumbnail.x
-                                    dragProxy.y = thumbnail.y
+                                    if (dragProxy.isDragging) {
+                                        dragProxy.Drag.drop()
+                                    }
+                                    dragProxy.isDragging = false
+                                    dragTargetDummy.x = 0
+                                    dragTargetDummy.y = 0
                                 }
                                 onCanceled: {
-                                    dragProxy.x = thumbnail.x
-                                    dragProxy.y = thumbnail.y
+                                    dragProxy.isDragging = false
+                                    dragTargetDummy.x = 0
+                                    dragTargetDummy.y = 0
                                 }
                             }
                         }
@@ -716,11 +733,7 @@ Rectangle {
                 Layout.fillHeight: true
             }
 
-            // Tab 2: AI Assist
-            AIAssist {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-            }
+
         }
     }
     component TabButton: AbstractButton {
