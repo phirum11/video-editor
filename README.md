@@ -1,6 +1,3 @@
-<p align="center">
-  <img src="https://github.com/phirum11/video-editor/raw/master/screenshot.png" alt="Video Studio Pro UI">
-</p>
 
 <h1 align="center">Video Studio</h1>
 
