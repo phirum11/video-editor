@@ -2,6 +2,12 @@
 <h1 align="center">Video Studio</h1>
 
 <p align="center">
+  <a href="https://github.com/phirum11/video-editor/actions"><img src="https://github.com/phirum11/video-editor/workflows/Build/badge.svg" alt="Build Status"></a>
+  <a href="https://www.qt.io/"><img src="https://img.shields.io/badge/Qt-6.5%2B-41CD52?logo=qt&logoColor=white" alt="Qt Version"></a>
+  <a href="https://isocpp.org/"><img src="https://img.shields.io/badge/C%2B%2B-17-00599C?logo=c%2B%2B&logoColor=white" alt="C++ Standard"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License"></a>
+</p>
+<p align="center">
   A modern, high-performance video editor built with C++, Qt, and QML. Video Studio Pro features a sleek, dark-themed user interface inspired by industry-leading editing software.
 </p>
 
@@ -41,6 +47,27 @@
    ```bash
    .\VideoStudio.exe
    ```
+
+## 🏗️ Architecture Overview
+
+The project is structured into clear, decoupled domains to ensure performance and maintainability:
+- **`core/`**: The high-performance C++ backend. Handles the Timeline engine, Media Models, Playback, and Export rendering.
+- **`ui/`**: The frontend layer built entirely with modern Qt Quick (QML) for a fluid, hardware-accelerated user experience.
+- **`third_party/`**: External dependencies, primarily pre-compiled FFmpeg libraries used for media processing.
+- **`tests/`**: C++ test probes for ensuring core engine stability.
+
+## 🗺️ Roadmap
+
+We have ambitious goals for Video Studio Pro! Here is what's coming next:
+- [ ] Implement audio waveform rendering for timeline clips.
+- [ ] Add Advanced keyframe animation for Transform and Color effects.
+- [ ] Expand export formats (e.g., specific presets for YouTube, TikTok).
+- [ ] Create a plugin system for custom third-party effects.
+
+## 💬 Community
+
+Want to discuss a feature or need help getting the project to build?
+- Join the discussion on our [GitHub Discussions](https://github.com/phirum11/video-editor/discussions) board.
 
 ## 🤝 Contributing
 Contributions are always welcome! Please read the `CONTRIBUTING.md` file for details on our guidelines and the process for submitting pull requests.
