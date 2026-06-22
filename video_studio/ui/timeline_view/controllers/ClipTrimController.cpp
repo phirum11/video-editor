@@ -28,6 +28,13 @@ bool ClipTrimController::trimClipLeft(TimelineController* timeline, int row, dou
     const double currentInPoint = clip.value("sourceInPoint").toDouble();
     const double sourceDuration = clip.value("sourceDuration").toDouble();
     const QString linkGroup = clip.value("linkGroupId").toString();
+    const QString filePath = clip.value("filePath").toString();
+    const bool isImage = filePath.endsWith(".jpg", Qt::CaseInsensitive) || 
+                         filePath.endsWith(".jpeg", Qt::CaseInsensitive) ||
+                         filePath.endsWith(".png", Qt::CaseInsensitive) ||
+                         filePath.endsWith(".webp", Qt::CaseInsensitive) ||
+                         filePath.endsWith(".bmp", Qt::CaseInsensitive) ||
+                         (!clip.value("hasAudio").toBool() && std::abs(sourceDuration - 5.0) < 0.1);
 
     double newStart = currentStart + deltaSeconds;
     double newDuration = currentDuration - deltaSeconds;
@@ -40,19 +47,21 @@ bool ClipTrimController::trimClipLeft(TimelineController* timeline, int row, dou
         newStart -= diff;
         newInPoint -= diff;
     }
-    if (newInPoint < 0.0) {
+    if (!isImage && newInPoint < 0.0) {
         double diff = -newInPoint;
         newInPoint = 0.0;
         newStart += diff;
         newDuration -= diff;
+    } else if (isImage && newInPoint < 0.0) {
+        newInPoint = 0.0;
     }
     if (newStart < 0.0) {
         double diff = -newStart;
         newStart = 0.0;
-        newInPoint += diff;
+        if (!isImage) newInPoint += diff;
         newDuration -= diff;
     }
-    if (newInPoint + newDuration > sourceDuration && sourceDuration > 0) {
+    if (!isImage && newInPoint + newDuration > sourceDuration && sourceDuration > 0) {
         // Technically this shouldn't happen if right edge isn't moving, but just in case
         newDuration = sourceDuration - newInPoint;
     }
@@ -74,6 +83,13 @@ bool ClipTrimController::trimClipRight(TimelineController* timeline, int row, do
     const double currentInPoint = clip.value("sourceInPoint").toDouble();
     const double sourceDuration = clip.value("sourceDuration").toDouble();
     const QString linkGroup = clip.value("linkGroupId").toString();
+    const QString filePath = clip.value("filePath").toString();
+    const bool isImage = filePath.endsWith(".jpg", Qt::CaseInsensitive) || 
+                         filePath.endsWith(".jpeg", Qt::CaseInsensitive) ||
+                         filePath.endsWith(".png", Qt::CaseInsensitive) ||
+                         filePath.endsWith(".webp", Qt::CaseInsensitive) ||
+                         filePath.endsWith(".bmp", Qt::CaseInsensitive) ||
+                         (!clip.value("hasAudio").toBool() && std::abs(sourceDuration - 5.0) < 0.1);
 
     double newDuration = currentDuration + deltaSeconds;
 
@@ -81,7 +97,7 @@ bool ClipTrimController::trimClipRight(TimelineController* timeline, int row, do
     if (newDuration < 0.1) {
         newDuration = 0.1;
     }
-    if (sourceDuration > 0 && currentInPoint + newDuration > sourceDuration) {
+    if (!isImage && sourceDuration > 0 && currentInPoint + newDuration > sourceDuration) {
         newDuration = sourceDuration - currentInPoint;
     }
 

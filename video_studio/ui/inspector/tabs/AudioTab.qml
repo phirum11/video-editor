@@ -12,6 +12,11 @@ ScrollView {
     id: rootScrollView
     clip: true
     contentWidth: availableWidth
+    ScrollBar.vertical: ScrollBar {
+        policy: ScrollBar.AsNeeded
+        width: 12
+    }
+    
     ColumnLayout {
         width: rootScrollView.availableWidth
         spacing: 2
@@ -60,7 +65,7 @@ ScrollView {
                         }
                         contentItem: Text {
                             text: basicAudioCheck.text
-                            color: "#eef4f6"
+                            color: Theme.text
                             font.pixelSize: 14
                             verticalAlignment: Text.AlignVCenter
                             leftPadding: basicAudioCheck.indicator.width + basicAudioCheck.spacing
@@ -137,7 +142,7 @@ ScrollView {
                                         Rectangle {
                                             anchors.fill: parent
                                             color: "transparent"
-                                            border.color: "#ffffff"
+                                            border.color: Theme.text
                                             border.width: 1
                                             opacity: 0.3
                                             radius: parent.radius

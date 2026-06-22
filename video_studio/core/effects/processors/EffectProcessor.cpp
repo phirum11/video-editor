@@ -3,11 +3,63 @@
 #include <algorithm>
 #include <cmath>
 
+#include <QColor>
+#include <QVector3D>
+
 QImage EffectProcessor::processImage(const QImage& source, const ClipEffects& effects)
 {
     if (source.isNull()) return source;
     
     QImage result = source;
+
+    // 0. Chroma Key
+    if (effects.chromaKey.enabled) {
+        QImage chromaImage = result.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+        QColor keyColor(effects.chromaKey.color);
+        int kr = keyColor.red();
+        int kg = keyColor.green();
+        int kb = keyColor.blue();
+        
+        // Convert variance (0.0 - 1.0) to squared distance threshold (max dist squared is 3*255^2 = 195075)
+        double maxDistSq = 195075.0;
+        double threshold = effects.chromaKey.variance * effects.chromaKey.variance * maxDistSq;
+        double softThreshold = (effects.chromaKey.variance + effects.chromaKey.softness) * (effects.chromaKey.variance + effects.chromaKey.softness) * maxDistSq;
+        
+        int width = chromaImage.width();
+        int height = chromaImage.height();
+        
+        for (int y = 0; y < height; ++y) {
+            QRgb* scanLine = reinterpret_cast<QRgb*>(chromaImage.scanLine(y));
+            for (int x = 0; x < width; ++x) {
+                QRgb pixel = scanLine[x];
+                int r = qRed(pixel);
+                int g = qGreen(pixel);
+                int b = qBlue(pixel);
+                int a = qAlpha(pixel);
+                
+                double distSq = (r - kr)*(r - kr) + (g - kg)*(g - kg) + (b - kb)*(b - kb);
+                
+                if (distSq < threshold) {
+                    a = 0;
+                } else if (distSq < softThreshold && softThreshold > threshold) {
+                    double alphaFactor = (distSq - threshold) / (softThreshold - threshold);
+                    a = static_cast<int>(a * alphaFactor);
+                    
+                    if (effects.chromaKey.spillSuppress) {
+                        // Simple spill suppress: reduce key color component
+                        if (kg > kr && kg > kb) { // Green screen
+                            g = std::min(g, std::max(r, b));
+                        } else if (kb > kr && kb > kg) { // Blue screen
+                            b = std::min(b, std::max(r, g));
+                        }
+                    }
+                }
+                
+                scanLine[x] = qRgba(r * a / 255, g * a / 255, b * a / 255, a);
+            }
+        }
+        result = chromaImage;
+    }
 
     // 1. Blur
     if (effects.blur.radius > 0) {

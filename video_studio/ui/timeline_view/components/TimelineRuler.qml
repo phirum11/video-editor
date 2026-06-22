@@ -11,8 +11,8 @@ Rectangle {
     property real contentWidth: width
     property real playheadSeconds: 0
     property color panelLine: Theme.divider
-    property color textMuted: "#7f939c"
-    property color accent: "#58a8d8"
+    property color textMuted: Theme.textMuted
+    property color accent: Theme.accent
     readonly property real playheadX: playheadSeconds * pixelsPerSecond - scrollOffset
     readonly property real visibleDurationSeconds: Math.max(1, width / Math.max(0.001, pixelsPerSecond))
     readonly property real majorStepSeconds: chooseMajorStepSeconds(visibleDurationSeconds)
@@ -104,33 +104,38 @@ Rectangle {
 
     Item {
         id: playheadHead
-        x: rulerRoot.playheadX - width / 2
-        y: rulerRoot.height - 18
-        width: 14
-        height: 18
+        x: rulerRoot.playheadX - width / 2 + 1
+        y: 0
+        width: 16
+        height: rulerRoot.height
         visible: x > -width && x < rulerRoot.width
+        z: 10
 
-        // Subtle drop shadow
-        Rectangle {
-            x: 4; y: 2; width: 6; height: 16
-            color: "#60000000"
-            radius: 3
+        Canvas {
+            x: 0
+            y: 0
+            width: parent.width
+            height: 12
+            antialiasing: true
+            onPaint: {
+                var ctx = getContext("2d");
+                ctx.reset();
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(width, 0);
+                ctx.lineTo(width / 2, height);
+                ctx.closePath();
+                ctx.fillStyle = rulerRoot.accent;
+                ctx.fill();
+            }
         }
 
-        // Sleek modern pill shape
         Rectangle {
-            x: 1; y: 0; width: 12; height: 16
-            color: "#f0f8fa" // Off-white
-            radius: 6
-            border.color: rulerRoot.accent
-            border.width: 2
-        }
-        
-        // Inner glowing dot
-        Rectangle {
-            x: 5; y: 4; width: 4; height: 4
+            x: parent.width / 2 - 1
+            y: 10
+            width: 2
+            height: parent.height - 10
             color: rulerRoot.accent
-            radius: 2
         }
     }
 

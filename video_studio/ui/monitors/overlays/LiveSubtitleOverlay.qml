@@ -13,12 +13,12 @@ Item {
     property real currentTime: 0
     property string currentText: ""
     
-    property color fontColor: "#ffffff"
+    property color fontColor: Theme.text
     property color bgColor: "#99000000"
     
     // We bind to the global font and color, with a fallback if subtitleCtrl isn't ready
-    property font currentFont: subtitleCtrl ? subtitleCtrl.font : Qt.font({pixelSize: 24, weight: Font.Bold})
-    property color currentColor: subtitleCtrl ? subtitleCtrl.color : "#ffffff"
+    property font currentFont: subtitleCtrl ? subtitleCtrl.font : Qt.font({pixelSize: 12, weight: Font.Bold})
+    property color currentColor: subtitleCtrl ? subtitleCtrl.color : Theme.text
     
     clip: true
     
@@ -57,6 +57,7 @@ Item {
     }
     
     property bool noBackground: false
+    property bool isHidden: false
     
     Menu {
         id: contextMenu
@@ -73,7 +74,7 @@ Item {
             text: qsTr("Change Font...")
             contentItem: Text {
                 text: fontItem.text
-                color: "#ffffff"
+                color: Theme.text
                 font.pixelSize: 13
                 verticalAlignment: Text.AlignVCenter
                 horizontalAlignment: Text.AlignLeft
@@ -93,7 +94,7 @@ Item {
             text: qsTr("Change Text Color...")
             contentItem: Text {
                 text: textColorItem.text
-                color: "#ffffff"
+                color: Theme.text
                 font.pixelSize: 13
                 verticalAlignment: Text.AlignVCenter
                 horizontalAlignment: Text.AlignLeft
@@ -113,7 +114,7 @@ Item {
             text: qsTr("Change Background Color...")
             contentItem: Text {
                 text: bgColorItem.text
-                color: "#ffffff"
+                color: Theme.text
                 font.pixelSize: 13
                 verticalAlignment: Text.AlignVCenter
                 horizontalAlignment: Text.AlignLeft
@@ -142,7 +143,7 @@ Item {
             checked: root.noBackground
             contentItem: Text {
                 text: noBgItem.checked ? "✓ " + noBgItem.text : "   " + noBgItem.text
-                color: "#ffffff"
+                color: Theme.text
                 font.pixelSize: 13
                 verticalAlignment: Text.AlignVCenter
                 horizontalAlignment: Text.AlignLeft
@@ -156,26 +157,39 @@ Item {
                 root.noBackground = !root.noBackground
             }
         }
+        MenuItem {
+            id: hideItem
+            text: qsTr("Hide Subtitle")
+            checkable: true
+            checked: root.isHidden
+            contentItem: Text {
+                text: hideItem.checked ? "✓ " + hideItem.text : "   " + hideItem.text
+                color: Theme.text
+                font.pixelSize: 13
+                verticalAlignment: Text.AlignVCenter
+                horizontalAlignment: Text.AlignLeft
+            }
+            background: Rectangle {
+                implicitWidth: 220
+                implicitHeight: 34
+                color: hideItem.highlighted ? "#3a3a4a" : "transparent"
+            }
+            onTriggered: {
+                root.isHidden = !root.isHidden
+            }
+        }
     }
 
     Rectangle {
         id: subtitleContainer
         
-        visible: root.currentText.length > 0
+        visible: root.currentText.length > 0 && !root.isHidden
         
         // Dynamic sizing based on text content
         width: subtitleText.implicitWidth + 32
         height: subtitleText.implicitHeight + 16
         
-        property real lastWidth: 0
-        
-        // When width changes, adjust x to ensure the box expands symmetrically from its center!
-        onWidthChanged: {
-            if (lastWidth > 0 && width !== lastWidth) {
-                x -= (width - lastWidth) / 2
-            }
-            lastWidth = width
-        }
+        anchors.horizontalCenter: parent.horizontalCenter
         
         onYChanged: {
             if (root.height > 0 && root.subtitleCtrl && dragHandler.active) {
@@ -187,16 +201,8 @@ Item {
         
         Connections {
             target: root
-            function onWidthChanged() {
-                if (!subtitleContainer.isCentered && root.width > 0 && root.height > 0) {
-                    subtitleContainer.x = (root.width - subtitleContainer.width) / 2
-                    subtitleContainer.y = root.height - subtitleContainer.height - 30
-                    subtitleContainer.isCentered = true
-                }
-            }
             function onHeightChanged() {
-                if (!subtitleContainer.isCentered && root.width > 0 && root.height > 0) {
-                    subtitleContainer.x = (root.width - subtitleContainer.width) / 2
+                if (!subtitleContainer.isCentered && root.height > 0) {
                     subtitleContainer.y = root.height - subtitleContainer.height - 30
                     subtitleContainer.isCentered = true
                 }
@@ -204,8 +210,7 @@ Item {
         }
         
         Component.onCompleted: {
-            if (root.width > 0 && root.height > 0) {
-                x = (root.width - width) / 2
+            if (root.height > 0) {
                 if (root.subtitleCtrl && root.subtitleCtrl.verticalPosition >= 0.0) {
                     y = root.height * root.subtitleCtrl.verticalPosition
                 } else {
@@ -213,7 +218,6 @@ Item {
                 }
                 isCentered = true
             }
-            lastWidth = width
         }
         
         color: root.noBackground ? "transparent" : root.bgColor
@@ -235,6 +239,7 @@ Item {
             id: dragHandler
             target: subtitleContainer
             cursorShape: Qt.OpenHandCursor
+            xAxis.enabled: false
             
             onActiveChanged: {
                 if (active) {

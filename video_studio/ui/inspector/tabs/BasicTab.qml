@@ -11,6 +11,10 @@ ScrollView {
     id: rootScrollView
     clip: true
     contentWidth: availableWidth
+    ScrollBar.vertical: ScrollBar {
+        policy: ScrollBar.AsNeeded
+        width: 12
+    }
     
     ColumnLayout {
         width: rootScrollView.availableWidth
@@ -119,7 +123,7 @@ ScrollView {
                     }
                     contentItem: Text {
                         text: blendModeCombo.currentText
-                        color: "#dce4e7"
+                        color: Theme.text
                         font.pixelSize: 11
                         verticalAlignment: Text.AlignVCenter
                         leftPadding: 8
@@ -132,7 +136,7 @@ ScrollView {
                         height: 24
                         contentItem: Text {
                             text: delegateItem.modelData
-                            color: delegateItem.highlighted ? "#ffffff" : "#dce4e7"
+                            color: delegateItem.highlighted ? Theme.text : "#dce4e7"
                             font.pixelSize: 11
                             verticalAlignment: Text.AlignVCenter
                             leftPadding: 4

@@ -36,7 +36,7 @@ RowLayout {
             width: 18
             height: 18
             radius: 9
-            color: "#ffffff"
+            color: Theme.text
 
             Behavior on x {
                 NumberAnimation { duration: 200; easing.type: Easing.OutBack }

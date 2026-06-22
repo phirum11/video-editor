@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
+import QtQuick.Dialogs
 import VideoStudioUI
 import "header"
 import "header/menus"
@@ -12,16 +13,17 @@ import "main_setting"
 
 Window {
     id: mainWindow
-    width: 1280
-    height: 720
-    minimumWidth: 900
-    minimumHeight: 560
+    width: 1200
+    height: 700
+    minimumWidth: 800
+    minimumHeight: 600
     visible: true
     title: qsTr("Video Studio")
-    color: "#000000"
+    color: '#f1eeee'
     flags: Qt.Window | Qt.FramelessWindowHint
     
     property bool isVerticalLayout: false
+    property real _neededHeight: 800
 
     Connections {
         target: typeof ActionManager !== "undefined" ? ActionManager : null
@@ -34,9 +36,36 @@ Window {
         }
     }
 
-    ColumnLayout {
+    ScrollView {
+        id: mainScrollView
         anchors.fill: parent
-        spacing: 0
+        contentWidth: Math.max(width, 1024)
+        contentHeight: Math.max(height, mainWindow._neededHeight)
+        clip: true
+
+        ScrollBar.horizontal: ScrollBar {
+            policy: ScrollBar.AsNeeded
+            background: Rectangle { color: Theme.background }
+            contentItem: Rectangle {
+                implicitHeight: 12
+                radius: 6
+                color: parent.pressed ? Theme.textMuted : Theme.divider
+            }
+        }
+        ScrollBar.vertical: ScrollBar {
+            policy: ScrollBar.AsNeeded
+            background: Rectangle { color: Theme.background }
+            contentItem: Rectangle {
+                implicitWidth: 12
+                radius: 6
+                color: parent.pressed ? Theme.textMuted : Theme.divider
+            }
+        }
+
+        ColumnLayout {
+            width: mainScrollView.contentWidth
+            height: mainScrollView.contentHeight
+            spacing: 0
 
         HeaderMenu {
             Layout.fillWidth: true
@@ -44,6 +73,46 @@ Window {
             timelineController: timelineView.timelineController
             subtitleController: subtitleCtrl
             onOpenSettings: mainSettingsDialog.open()
+            onSaveProjectRequested: saveProjectDialog.open()
+            onOpenProjectRequested: openProjectDialog.open()
+        }
+
+        ProjectManager {
+            id: projectManager
+        }
+
+        FileDialog {
+            id: saveProjectDialog
+            title: "Save Project"
+            fileMode: FileDialog.SaveFile
+            nameFilters: ["Video Studio Projects (*.vsproj)", "All Files (*)"]
+            onAccepted: {
+                if (projectManager.saveProject(saveProjectDialog.selectedFile,
+                                               projectBrowser.mediaPoolController,
+                                               timelineView.timelineController,
+                                               subtitleCtrl)) {
+                    console.log("Project saved successfully")
+                } else {
+                    console.log("Failed to save project")
+                }
+            }
+        }
+
+        FileDialog {
+            id: openProjectDialog
+            title: "Open Project"
+            fileMode: FileDialog.OpenFile
+            nameFilters: ["Video Studio Projects (*.vsproj)", "All Files (*)"]
+            onAccepted: {
+                if (projectManager.loadProject(openProjectDialog.selectedFile,
+                                               projectBrowser.mediaPoolController,
+                                               timelineView.timelineController,
+                                               subtitleCtrl)) {
+                    console.log("Project loaded successfully")
+                } else {
+                    console.log("Failed to load project")
+                }
+            }
         }
 
         SplitView {
@@ -62,10 +131,18 @@ Window {
             SplitView {
                 id: blockA
                 orientation: mainWindow.isVerticalLayout ? Qt.Vertical : Qt.Horizontal
-                SplitView.preferredHeight: mainWindow.isVerticalLayout ? undefined : mainWindow.height * 0.55
+                SplitView.preferredHeight: mainWindow.isVerticalLayout ? undefined : mainWindow.height * 0.65
+                SplitView.minimumHeight: 300
                 SplitView.preferredWidth: mainWindow.isVerticalLayout ? Math.round(mainWindow.width * 0.6) : undefined
-                SplitView.fillHeight: true
                 SplitView.fillWidth: mainWindow.isVerticalLayout ? false : true
+
+                onHeightChanged: {
+                    if (!mainWindow.isVerticalLayout) {
+                        var minTimelineH = 250
+                        var overhead = 40
+                        mainWindow._neededHeight = Math.max(800, height + minTimelineH + overhead)
+                    }
+                }
 
                 handle: Rectangle {
                     implicitWidth: 4
@@ -76,8 +153,8 @@ Window {
                 Item {
                     id: ph_projectBrowser_default
                     visible: !mainWindow.isVerticalLayout
-                    SplitView.preferredWidth: Math.round(mainWindow.width * 0.28)
-                    SplitView.minimumWidth: 250
+                    SplitView.preferredWidth: Math.round(mainWindow.width * 0.20)
+                    SplitView.minimumWidth: 200
                     SplitView.fillHeight: true
                 }
 
@@ -92,8 +169,8 @@ Window {
                 Item {
                     id: ph_inspector_default
                     visible: !mainWindow.isVerticalLayout
-                    SplitView.preferredWidth: 340
-                    SplitView.minimumWidth: 280
+                    SplitView.preferredWidth: 300
+                    SplitView.minimumWidth: 240
                     SplitView.fillHeight: true
                 }
 
@@ -138,8 +215,8 @@ Window {
             Item {
                 id: ph_timeline_default
                 visible: !mainWindow.isVerticalLayout
-                SplitView.preferredHeight: mainWindow.height * 0.45
-                SplitView.minimumHeight: 150
+                SplitView.preferredHeight: mainWindow.height * 0.35
+                SplitView.minimumHeight: 250
                 SplitView.fillHeight: true
                 SplitView.fillWidth: true
             }
@@ -215,6 +292,10 @@ Window {
             onSubtitleDropped: function(filePath, startSeconds, trackIndex) {
                 subtitleCtrl.addSrtToTimelineAt(filePath, timelineView.timelineController, startSeconds, trackIndex)
             }
+            onGenerateAudioRequested: function(language) {
+                timelineView.timelineController.generateAIVoiceFromSrt(language)
+            }
+        }
         }
     }
 

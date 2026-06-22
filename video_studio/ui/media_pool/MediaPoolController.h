@@ -25,6 +25,7 @@ public:
     Q_INVOKABLE void importMediaPath(const QString& filePath);
     Q_INVOKABLE void importMediaFileUrl(const QUrl& fileUrl);
     Q_INVOKABLE bool removeMediaAt(int row);
+    Q_INVOKABLE QVariantMap getMediaAt(int row);
     Q_INVOKABLE void openFileLocation(int row);
     Q_INVOKABLE bool renameMediaAt(int row, const QString& newName);
 

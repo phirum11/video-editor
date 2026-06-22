@@ -19,6 +19,7 @@ Rectangle {
     signal previewCleared()
     signal seekRequested(real seconds)
     signal subtitleDropped(string filePath, real startSeconds, int trackIndex)
+    signal generateAudioRequested(string language)
 
     function addMediaClip(name, filePath, duration, hasVideo, hasAudio, startSeconds, trackIndex) {
         const insertAt = Number.isFinite(startSeconds) && startSeconds >= 0
@@ -28,8 +29,8 @@ Rectangle {
         return tracks.addMediaClip(name, filePath, duration, hasVideo, hasAudio, insertAt, insertTrack)
     }
 
-    function deleteSelectedClip() {
-        tracks.deleteSelectedClip()
+    function deleteSelectedClips() {
+        tracks.deleteSelectedClips()
     }
 
     function removeMediaClips(filePath) {
@@ -61,6 +62,9 @@ Rectangle {
             }
             onSubtitleDropped: function(filePath, startSeconds, trackIndex) {
                 timelineRoot.subtitleDropped(filePath, startSeconds, trackIndex)
+            }
+            onGenerateAudioRequested: function(language) {
+                timelineRoot.generateAudioRequested(language)
             }
         }
 

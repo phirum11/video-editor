@@ -172,6 +172,12 @@ Rectangle {
                         font.pixelSize: 11
                         MouseArea { anchors.fill: parent; onClicked: inspectorRoot.effectTab = 4 }
                     }
+                    Text {
+                        text: "Chroma"
+                        color: inspectorRoot.effectTab === 5 ? "#2792c3" : "#8a9ba3"
+                        font.pixelSize: 11
+                        MouseArea { anchors.fill: parent; onClicked: inspectorRoot.effectTab = 5 }
+                    }
                     
                     Item { Layout.preferredWidth: 8 }
                 }
@@ -184,11 +190,36 @@ Rectangle {
             Layout.fillHeight: true
             currentIndex: inspectorRoot.effectTab
 
-            BasicTab { property var effectController: inspectorRoot.effectController }
-            ColorTab { property var effectController: inspectorRoot.effectController }
-            BlurTab { property var effectController: inspectorRoot.effectController }
-            StylizeTab { property var effectController: inspectorRoot.effectController }
-            AudioTab { property var effectController: inspectorRoot.effectController }
+            BasicTab {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                property var effectController: inspectorRoot.effectController
+            }
+            ColorTab {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                property var effectController: inspectorRoot.effectController
+            }
+            BlurTab {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                property var effectController: inspectorRoot.effectController
+            }
+            StylizeTab {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                property var effectController: inspectorRoot.effectController
+            }
+            AudioTab {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                property var effectController: inspectorRoot.effectController
+            }
+            ChromaTab {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                property var effectController: inspectorRoot.effectController
+            }
         }
     }
 }

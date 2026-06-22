@@ -98,6 +98,15 @@ AVFormatContextPtr openFormatContext(const QString& filePath)
         throw ffmpegError(QStringLiteral("Could not open media file '%1'").arg(filePath), result);
     }
 
+    if (filePath.endsWith(QStringLiteral(".jpg"), Qt::CaseInsensitive) ||
+        filePath.endsWith(QStringLiteral(".jpeg"), Qt::CaseInsensitive) ||
+        filePath.endsWith(QStringLiteral(".png"), Qt::CaseInsensitive) ||
+        filePath.endsWith(QStringLiteral(".webp"), Qt::CaseInsensitive) ||
+        filePath.endsWith(QStringLiteral(".bmp"), Qt::CaseInsensitive)) {
+        rawContext->max_analyze_duration = AV_TIME_BASE / 10;
+        rawContext->probesize = 32768;
+    }
+
     AVFormatContextPtr context(rawContext);
     result = avformat_find_stream_info(context.get(), nullptr);
     if (result < 0) {
@@ -424,18 +433,27 @@ QImage MediaItem::extractFrame(double timestampSeconds, QSize requestedSize) con
     AVFormatContextPtr context = openFormatContext(m_filePath);
     VideoDecoder decoder = openVideoDecoder(context.get());
 
-    const double targetSeconds = normalizedTimestamp(timestampSeconds, durationSeconds());
+    const bool isImage = m_filePath.endsWith(QStringLiteral(".jpg"), Qt::CaseInsensitive) ||
+                         m_filePath.endsWith(QStringLiteral(".jpeg"), Qt::CaseInsensitive) ||
+                         m_filePath.endsWith(QStringLiteral(".png"), Qt::CaseInsensitive) ||
+                         m_filePath.endsWith(QStringLiteral(".webp"), Qt::CaseInsensitive) ||
+                         m_filePath.endsWith(QStringLiteral(".bmp"), Qt::CaseInsensitive);
+
+    const double targetSeconds = isImage ? 0.0 : normalizedTimestamp(timestampSeconds, durationSeconds());
     const std::int64_t targetAvTimestamp = secondsToAvTimeBase(targetSeconds);
     const AVRational avTimeBase = {1, AV_TIME_BASE};
     const std::int64_t streamSeekTimestamp =
         av_rescale_q(targetAvTimestamp, avTimeBase, decoder.stream->time_base);
 
-    int result = av_seek_frame(context.get(),
+    int result = 0;
+    if (targetSeconds > 0.0) {
+        result = av_seek_frame(context.get(),
                                decoder.streamIndex,
                                streamSeekTimestamp,
                                AVSEEK_FLAG_BACKWARD);
-    if (result < 0) {
-        result = av_seek_frame(context.get(), -1, targetAvTimestamp, AVSEEK_FLAG_BACKWARD);
+        if (result < 0) {
+            result = av_seek_frame(context.get(), -1, targetAvTimestamp, AVSEEK_FLAG_BACKWARD);
+        }
     }
 
     if (result >= 0) {
@@ -463,6 +481,9 @@ QImage MediaItem::extractFrame(double timestampSeconds, QSize requestedSize) con
             QImage image;
             if (frameSeconds < 0.0 || frameSeconds + frameToleranceSeconds >= targetSeconds) {
                 image = convertFrameToImage(frame.get(), decoder.codecContext.get(), requestedSize);
+                if (image.isNull()) {
+                    qDebug() << "convertFrameToImage returned null image!";
+                }
                 av_frame_unref(frame.get());
                 return image;
             }
@@ -476,6 +497,7 @@ QImage MediaItem::extractFrame(double timestampSeconds, QSize requestedSize) con
             av_packet_unref(packet.get());
             continue;
         }
+        // qDebug() << "Read packet at pts" << packet->pts;
 
         result = avcodec_send_packet(decoder.codecContext.get(), packet.get());
         av_packet_unref(packet.get());
@@ -499,6 +521,8 @@ QImage MediaItem::extractFrame(double timestampSeconds, QSize requestedSize) con
         QImage image = receiveFrames();
         if (!image.isNull()) {
             return image;
+        } else {
+            qDebug() << "receiveFrames returned null after flush!";
         }
     } else if (result != AVERROR_EOF) {
         throw ffmpegError(QStringLiteral("Could not flush video decoder"), result);

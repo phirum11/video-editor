@@ -89,6 +89,21 @@ bool MediaPoolController::removeMediaAt(int row)
     return removed;
 }
 
+QVariantMap MediaPoolController::getMediaAt(int row)
+{
+    QVariantMap result;
+    const QModelIndex proxyIndex = m_proxyModel->index(row, 0);
+    if (proxyIndex.isValid()) {
+        const QModelIndex sourceIndex = m_proxyModel->mapToSource(proxyIndex);
+        result["mediaName"] = m_mediaModel->data(sourceIndex, MediaListModel::NameRole).toString();
+        result["mediaFilePath"] = m_mediaModel->data(sourceIndex, MediaListModel::FilePathRole).toString();
+        result["mediaDuration"] = m_mediaModel->data(sourceIndex, MediaListModel::DurationRole).toReal();
+        result["mediaHasVideo"] = m_mediaModel->data(sourceIndex, MediaListModel::HasVideoRole).toBool();
+        result["mediaHasAudio"] = m_mediaModel->data(sourceIndex, MediaListModel::HasAudioRole).toBool();
+    }
+    return result;
+}
+
 void MediaPoolController::openFileLocation(int row)
 {
     const QModelIndex proxyIndex = m_proxyModel->index(row, 0);

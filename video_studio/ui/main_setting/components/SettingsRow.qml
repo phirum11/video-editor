@@ -38,7 +38,7 @@ RowLayout {
 
         Rectangle {
             anchors.fill: parent
-            color: "#ffffff"
+            color: Theme.text
             opacity: hoverArea.containsMouse ? 0.03 : 0.0
             radius: 6
             Behavior on opacity { NumberAnimation { duration: 150 } }

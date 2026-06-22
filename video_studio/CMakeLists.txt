@@ -57,6 +57,7 @@ qt_add_qml_module(VideoStudio
         ui/inspector/tabs/BlurTab.qml
         ui/inspector/tabs/StylizeTab.qml
         ui/inspector/tabs/AudioTab.qml
+        ui/inspector/tabs/ChromaTab.qml
         ui/inspector/components/NeonEqualizer.qml
         ui/timeline_view/TimelineView.qml
         ui/timeline_view/components/TimelineToolbar.qml
@@ -67,22 +68,25 @@ qt_add_qml_module(VideoStudio
         ui/timeline_view/components/TimelineHeader.qml
         ui/timeline_view/components/TimelineRuler.qml
         ui/timeline_view/components/TimelineTrackHeaders.qml
+        ui/timeline_view/components/TimelineTrackControl.qml
         ui/timeline_view/components/AudioMeter.qml
         ui/settings/TimelineSettingsMenu.qml
         ui/main_setting/MainSettings.qml
-        ui/main_setting/components/SidebarItem.qml
         ui/main_setting/components/SettingsCard.qml
+        ui/main_setting/components/SettingsColorRow.qml
+        ui/main_setting/components/SettingsComboBoxRow.qml
         ui/main_setting/components/SettingsRow.qml
         ui/main_setting/components/SettingsToggleRow.qml
         ui/main_setting/components/ShortcutRow.qml
-        ui/main_setting/components/SettingsComboBoxRow.qml
-        ui/main_setting/components/SettingsColorRow.qml
+        ui/main_setting/components/SidebarItem.qml
     RESOURCES
+        assets/ai-voice.svg
         assets/check.svg
         assets/chevron-down.svg
         assets/chevron-up.svg
         assets/cloud.svg
         assets/eye.svg
+        assets/eye-off.svg
         assets/film.svg
         assets/folder.svg
         assets/grid-view.svg
@@ -90,6 +94,7 @@ qt_add_qml_module(VideoStudio
         assets/link.svg
         assets/list-view.svg
         assets/lock.svg
+        assets/unlock.svg
         assets/marker-pin.svg
         assets/mic.svg
         assets/monitor.svg
@@ -119,6 +124,7 @@ qt_add_qml_module(VideoStudio
         assets/tool-zoom.svg
         assets/undo.svg
         assets/users.svg
+        assets/volume-2.svg
         assets/volume-x.svg
         assets/trending_effect.png
         assets/retro_effect.png
@@ -146,8 +152,12 @@ qt_add_qml_module(VideoStudio
         core/effects/processors/EffectProcessor.h
         core/effects/controllers/EffectController.cpp
         core/effects/controllers/EffectController.h
+        core/effect_hub/models/EffectHubModel.cpp
+        core/effect_hub/models/EffectHubModel.h
         core/effects/models/TransformEffect.cpp
         core/effects/models/TransformEffect.h
+        core/effects/models/ChromaKeyEffect.cpp
+        core/effects/models/ChromaKeyEffect.h
         core/effects/models/ColorEffect.cpp
         core/effects/models/ColorEffect.h
         core/effects/models/BlurEffect.cpp
@@ -156,14 +166,30 @@ qt_add_qml_module(VideoStudio
         core/effects/models/StylizeEffect.h
         core/effects/models/AudioEffect.cpp
         core/effects/models/AudioEffect.h
+        core/vocal/AIVoiceGenerator.cpp
+        core/vocal/AIVoiceGenerator.h
         core/vocal/VocalIsolator.cpp
         core/vocal/VocalIsolator.h
+        core/vocal/engine/io/WavProcessor.cpp
+        core/vocal/engine/io/WavProcessor.h
+        core/vocal/engine/io/MediaAudioDecoder.cpp
+        core/vocal/engine/io/MediaAudioDecoder.h
+        core/vocal/engine/dsp/VocalRemover.cpp
+        core/vocal/engine/dsp/VocalRemover.h
+        core/vocal/engine/dsp/Fft.cpp
+        core/vocal/engine/dsp/Fft.h
+        core/vocal/engine/ai/AiVocalModel.cpp
+        core/vocal/engine/ai/AiVocalModel.h
         ui/inspector/controllers/InspectorController.cpp
         ui/inspector/controllers/InspectorController.h
         ui/media_pool/MediaPoolController.cpp
         ui/media_pool/MediaPoolController.h
         core/timeline/commands/TimelineCommands.cpp
         core/timeline/commands/TimelineCommands.h
+        core/timeline/controllers/TimelineAutoEditor.cpp
+        core/timeline/controllers/TimelineAutoEditor.h
+        core/project/ProjectManager.cpp
+        core/project/ProjectManager.h
         ui/timeline_view/controllers/TimelineController.cpp
         ui/timeline_view/controllers/TimelineController.h
         ui/timeline_view/controllers/ClipTrimController.cpp
@@ -200,16 +226,19 @@ target_link_libraries(VideoStudio PRIVATE
     Qt6::QuickDialogs2
     Qt6::Widgets
     Qt6::Multimedia
+    Qt6::Concurrent
     avcodec
     avformat
     avfilter
     avutil
     swresample
     swscale
+    onnxruntime
 )
 
 target_link_directories(VideoStudio PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/ffmpeg/lib
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/onnxruntime/lib
 )
 
 target_include_directories(VideoStudio PRIVATE
@@ -221,14 +250,21 @@ target_include_directories(VideoStudio PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/timeline_view/controllers
     ${CMAKE_CURRENT_SOURCE_DIR}/core/export
     ${CMAKE_CURRENT_SOURCE_DIR}/core/export/exporters
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/project
     ${CMAKE_CURRENT_SOURCE_DIR}/core/playback
     ${CMAKE_CURRENT_SOURCE_DIR}/core/playback/engines
     ${CMAKE_CURRENT_SOURCE_DIR}/core/subtitle
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/effect_hub/models
     ${CMAKE_CURRENT_SOURCE_DIR}/core/effects
     ${CMAKE_CURRENT_SOURCE_DIR}/core/effects/controllers
     ${CMAKE_CURRENT_SOURCE_DIR}/core/effects/models
     ${CMAKE_CURRENT_SOURCE_DIR}/core/vocal
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/vocal/engine
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/vocal/engine/ai
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/vocal/engine/dsp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/vocal/engine/io
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/ffmpeg/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/onnxruntime/include
 )
 
 file(GLOB FFMPEG_RUNTIME_DLLS
@@ -238,12 +274,25 @@ file(GLOB FFMPEG_RUNTIME_TOOLS
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/ffmpeg/bin/*.exe"
 )
 
+file(GLOB ONNX_RUNTIME_DLLS
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/onnxruntime/lib/*.dll"
+)
+
 if(FFMPEG_RUNTIME_DLLS)
     add_custom_command(TARGET VideoStudio POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             ${FFMPEG_RUNTIME_DLLS}
             $<TARGET_FILE_DIR:VideoStudio>
         COMMENT "Copying FFmpeg runtime DLLs"
+    )
+endif()
+
+if(ONNX_RUNTIME_DLLS)
+    add_custom_command(TARGET VideoStudio POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${ONNX_RUNTIME_DLLS}
+            $<TARGET_FILE_DIR:VideoStudio>
+        COMMENT "Copying ONNX Runtime DLLs"
     )
 endif()
 
@@ -486,3 +535,12 @@ if(FFMPEG_RUNTIME_TOOLS)
 endif()
 
 set_property(TARGET VideoStudio PROPERTY WIN32_EXECUTABLE FALSE)
+add_custom_command(TARGET VideoStudio POST_BUILD
+    COMMAND "" -E copy_if_different
+        "/core/vocal/uvr_runner.py"
+        "$<TARGET_FILE_DIR:VideoStudio>/uvr_runner.py"
+    COMMAND "" -E copy_if_different
+        "/core/vocal/edge_tts_runner.py"
+        "$<TARGET_FILE_DIR:VideoStudio>/edge_tts_runner.py"
+    COMMENT "Copying AI runners"
+)

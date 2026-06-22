@@ -51,6 +51,15 @@ bool openInput(const QString& path, AVFormatContext** context, QString* error)
         return false;
     }
 
+    if (path.endsWith(QStringLiteral(".jpg"), Qt::CaseInsensitive) ||
+        path.endsWith(QStringLiteral(".jpeg"), Qt::CaseInsensitive) ||
+        path.endsWith(QStringLiteral(".png"), Qt::CaseInsensitive) ||
+        path.endsWith(QStringLiteral(".webp"), Qt::CaseInsensitive) ||
+        path.endsWith(QStringLiteral(".bmp"), Qt::CaseInsensitive)) {
+        (*context)->max_analyze_duration = AV_TIME_BASE / 10;
+        (*context)->probesize = 32768;
+    }
+
     result = avformat_find_stream_info(*context, nullptr);
     if (result < 0) {
         if (error) {
@@ -162,6 +171,22 @@ PlaybackEngine::~PlaybackEngine()
     closeDecoders();
 }
 
+bool PlaybackEngine::isVideoImage() const
+{
+    if (!m_videoFormat) {
+        return false;
+    }
+    if (m_videoFormat->duration <= 0 || m_videoFormat->duration == AV_NOPTS_VALUE) {
+        return true;
+    }
+    if (m_videoStreamIndex >= 0) {
+        if (m_videoFormat->streams[m_videoStreamIndex]->nb_frames == 1) {
+            return true;
+        }
+    }
+    return false;
+}
+
 QString PlaybackEngine::clipName() const
 {
     return m_clipName;
@@ -190,6 +215,11 @@ double PlaybackEngine::position() const noexcept
 bool PlaybackEngine::isPlaying() const noexcept
 {
     return m_playing;
+}
+
+bool PlaybackEngine::isMuted() const noexcept
+{
+    return m_isMuted;
 }
 
 bool PlaybackEngine::isInClipRange(double timelineSeconds) const
@@ -238,6 +268,19 @@ void PlaybackEngine::setSequenceDuration(double duration)
     }
 }
 
+void PlaybackEngine::setIsMuted(bool muted)
+{
+    if (m_isMuted != muted) {
+        m_isMuted = muted;
+        emit isMutedChanged();
+        if (m_isMuted) {
+            setAudioLevels(0.0, 0.0);
+            // Flush any already-decoded audio sitting in the write buffer
+            m_pendingAudio.clear();
+        }
+    }
+}
+
 bool PlaybackEngine::hasVideo() const noexcept
 {
     return m_hasVideo;
@@ -279,9 +322,23 @@ int PlaybackEngine::sourceVideoHeight() const noexcept
     return 0;
 }
 
+QColor PlaybackEngine::backgroundColor() const noexcept
+{
+    return m_backgroundColor;
+}
+
+void PlaybackEngine::setBackgroundColor(const QColor& color)
+{
+    if (m_backgroundColor != color) {
+        m_backgroundColor = color;
+        emit backgroundColorChanged();
+        update();
+    }
+}
+
 void PlaybackEngine::paint(QPainter* painter)
 {
-    painter->fillRect(boundingRect(), QColor(QStringLiteral("#0b1115")));
+    painter->fillRect(boundingRect(), m_backgroundColor);
     if (m_processedFrame.isNull()) {
         return;
     }
@@ -308,6 +365,7 @@ bool PlaybackEngine::loadClip(const QString& name,
                               bool expectedVideo,
                               const QString& originalPath)
 {
+    const double savedPosition = m_position;
     pause();
     closeDecoders();
 
@@ -315,8 +373,8 @@ bool PlaybackEngine::loadClip(const QString& name,
     m_filePath = path;
     m_clipFileDuration = std::max(0.0, knownDuration);
     m_duration = m_clipStartOffset + m_clipFileDuration;
-    m_position = 0.0;
-    m_playStartPosition = 0.0;
+    m_position = savedPosition;
+    m_playStartPosition = savedPosition;
     m_lastVideoFrameSeconds = -1.0;
     m_lastPositionNotifyMs = -1;
     m_frameRate = 25.0;
@@ -456,8 +514,9 @@ void PlaybackEngine::seek(double seconds)
         pause();
     }
 
-    const double clampedSeconds = m_duration > 0.0
-        ? std::clamp(seconds, 0.0, m_duration)
+    const double effectiveDuration = m_sequenceDuration > 0.0 ? m_sequenceDuration : m_duration;
+    const double clampedSeconds = effectiveDuration > 0.0
+        ? std::clamp(seconds, 0.0, effectiveDuration)
         : std::max(0.0, seconds);
 
     setPosition(clampedSeconds, true);
@@ -538,38 +597,42 @@ void PlaybackEngine::tick()
 
     // In the clip — normal decode logic using clip-relative time
     if (m_hasVideo) {
-        const double frameInterval = 1.0 / std::max(1.0, m_frameRate);
-        if (m_lastVideoFrameSeconds >= 0.0
-            && clipTime - m_lastVideoFrameSeconds > 1.0) {
-            seekVideo(clipTime, true);
+        if (isVideoImage()) {
+            m_lastVideoFrameSeconds = clipTime;
         } else {
-            const double lagSeconds = m_lastVideoFrameSeconds >= 0.0
-                ? clipTime - m_lastVideoFrameSeconds
-                : 0.0;
-            const double resyncThreshold = std::max(0.35, frameInterval * 12.0);
-            if (lagSeconds > resyncThreshold) {
+            const double frameInterval = 1.0 / std::max(1.0, m_frameRate);
+            if (m_lastVideoFrameSeconds >= 0.0
+                && clipTime - m_lastVideoFrameSeconds > 1.0) {
                 seekVideo(clipTime, true);
             } else {
-                int decodedFrames = 0;
-                QImage latestImage;
-                double latestFrameSeconds = -1.0;
-                while (decodedFrames < 4
-                   && (m_lastVideoFrameSeconds < 0.0
-                       || m_lastVideoFrameSeconds + frameInterval * 0.55 < clipTime)) {
-                    QImage image;
-                    double frameSeconds = 0.0;
-                    if (!decodeNextVideoFrame(&image, &frameSeconds)) {
-                        break;
+                const double lagSeconds = m_lastVideoFrameSeconds >= 0.0
+                    ? clipTime - m_lastVideoFrameSeconds
+                    : 0.0;
+                const double resyncThreshold = std::max(0.35, frameInterval * 12.0);
+                if (lagSeconds > resyncThreshold) {
+                    seekVideo(clipTime, true);
+                } else {
+                    int decodedFrames = 0;
+                    QImage latestImage;
+                    double latestFrameSeconds = -1.0;
+                    while (decodedFrames < 4
+                       && (m_lastVideoFrameSeconds < 0.0
+                           || m_lastVideoFrameSeconds + frameInterval * 0.55 < clipTime)) {
+                        QImage image;
+                        double frameSeconds = 0.0;
+                        if (!decodeNextVideoFrame(&image, &frameSeconds)) {
+                            break;
+                        }
+
+                        latestFrameSeconds = frameSeconds >= 0.0 ? frameSeconds : clipTime;
+                        latestImage = std::move(image);
+                        m_lastVideoFrameSeconds = latestFrameSeconds;
+                        ++decodedFrames;
                     }
 
-                    latestFrameSeconds = frameSeconds >= 0.0 ? frameSeconds : clipTime;
-                    latestImage = std::move(image);
-                    m_lastVideoFrameSeconds = latestFrameSeconds;
-                    ++decodedFrames;
-                }
-
-                if (!latestImage.isNull()) {
-                    setFrame(std::move(latestImage), latestFrameSeconds);
+                    if (!latestImage.isNull()) {
+                        setFrame(std::move(latestImage), latestFrameSeconds);
+                    }
                 }
             }
         }
@@ -581,7 +644,7 @@ void PlaybackEngine::tick()
 void PlaybackEngine::closeDecoders()
 {
     m_timer.stop();
-    m_audioEngine.stop();
+    m_audioEngine.reset();
     m_pendingAudio.clear();
 
     if (m_sws) {
@@ -876,7 +939,8 @@ bool PlaybackEngine::decodeNextVideoFrame(QImage* image, double* timestampSecond
                 *timestampSeconds = frameSeconds;
             }
 
-            if (minConvertedTimestampSeconds >= 0.0
+            if (!isVideoImage()
+                && minConvertedTimestampSeconds >= 0.0
                 && frameSeconds >= 0.0
                 && frameSeconds < minConvertedTimestampSeconds) {
                 if (image) {
@@ -1071,6 +1135,10 @@ void PlaybackEngine::feedAudio()
             break;
         }
 
+        if (m_isMuted) {
+            pcm.fill(0);
+        }
+
         m_pendingAudio.append(pcm);
         ++guard;
     }
@@ -1112,8 +1180,15 @@ bool PlaybackEngine::writePendingAudio()
 
 void PlaybackEngine::setPosition(double seconds, bool forceNotify)
 {
-    const double nextPosition = m_duration > 0.0
-        ? std::clamp(seconds, 0.0, m_duration)
+    // When playing across a multi-clip timeline, allow position to advance
+    // beyond the currently-loaded clip's duration so scanClipsAtPosition can
+    // detect and swap to the next clip.
+    const double clampMax = m_sequenceDuration > 0.0
+        ? std::max(m_sequenceDuration, m_duration)
+        : m_duration;
+
+    const double nextPosition = clampMax > 0.0
+        ? std::clamp(seconds, 0.0, clampMax)
         : std::max(0.0, seconds);
 
     if (std::abs(m_position - nextPosition) < 0.001) {
@@ -1131,6 +1206,7 @@ void PlaybackEngine::setPosition(double seconds, bool forceNotify)
         emit positionChanged();
     }
 }
+
 
 void PlaybackEngine::setFrame(QImage image, double timestampSeconds)
 {

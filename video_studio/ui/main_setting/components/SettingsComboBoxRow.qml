@@ -7,7 +7,7 @@ RowLayout {
     id: comboRowRoot
     property string label: ""
     property var model: []
-    property int currentIndex: 0
+    property alias currentIndex: comboBox.currentIndex
 
     width: parent.width
     height: 36
@@ -43,7 +43,7 @@ RowLayout {
 
             Rectangle {
                 anchors.fill: parent
-                color: "#ffffff"
+                color: Theme.text
                 opacity: comboBox.hovered ? 0.04 : 0.0
                 radius: 6
                 Behavior on opacity { NumberAnimation { duration: 150 } }

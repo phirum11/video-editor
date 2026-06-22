@@ -45,10 +45,19 @@ struct AudioEffectData {
     double pan = 0.0;
 };
 
+struct ChromaKeyEffectData {
+    bool enabled = false;
+    QString color = "#00FF00"; // Default green
+    double variance = 0.25;
+    double softness = 0.1;
+    bool spillSuppress = true;
+};
+
 struct ClipEffects {
     TransformEffectData transform;
     ColorEffectData color;
     BlurEffectData blur;
     StylizeEffectData stylize;
     AudioEffectData audio;
+    ChromaKeyEffectData chromaKey;
 };

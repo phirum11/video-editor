@@ -30,6 +30,7 @@ class PlaybackEngine : public QQuickPaintedItem {
     Q_PROPERTY(double sequenceDuration READ sequenceDuration WRITE setSequenceDuration NOTIFY sequenceDurationChanged)
     Q_PROPERTY(double position READ position WRITE seek NOTIFY positionChanged)
     Q_PROPERTY(bool playing READ isPlaying NOTIFY playingChanged)
+    Q_PROPERTY(bool isMuted READ isMuted WRITE setIsMuted NOTIFY isMutedChanged)
     Q_PROPERTY(bool hasVideo READ hasVideo NOTIFY clipChanged)
     Q_PROPERTY(bool hasAudio READ hasAudio NOTIFY clipChanged)
     Q_PROPERTY(double frameRate READ frameRate NOTIFY clipChanged)
@@ -37,6 +38,7 @@ class PlaybackEngine : public QQuickPaintedItem {
     Q_PROPERTY(double audioLevelRight READ audioLevelRight NOTIFY audioLevelsChanged)
     Q_PROPERTY(int sourceVideoWidth READ sourceVideoWidth NOTIFY clipChanged)
     Q_PROPERTY(int sourceVideoHeight READ sourceVideoHeight NOTIFY clipChanged)
+    Q_PROPERTY(QColor backgroundColor READ backgroundColor WRITE setBackgroundColor NOTIFY backgroundColorChanged)
 
 public:
     explicit PlaybackEngine(QQuickItem* parent = nullptr);
@@ -48,6 +50,7 @@ public:
     double sequenceDuration() const noexcept;
     double position() const noexcept;
     bool isPlaying() const noexcept;
+    bool isMuted() const noexcept;
     bool hasVideo() const noexcept;
     bool hasAudio() const noexcept;
     double frameRate() const noexcept;
@@ -55,6 +58,8 @@ public:
     double audioLevelRight() const noexcept;
     int sourceVideoWidth() const noexcept;
     int sourceVideoHeight() const noexcept;
+    QColor backgroundColor() const noexcept;
+    void setBackgroundColor(const QColor& color);
 
     void paint(QPainter* painter) override;
 
@@ -72,6 +77,7 @@ public:
     Q_INVOKABLE void setClipStartOffset(double offset);
     Q_INVOKABLE void setSequenceDuration(double duration);
     Q_INVOKABLE void setSourceInPoint(double inPoint);
+    Q_INVOKABLE void setIsMuted(bool muted);
 
     void setClipEffects(const ClipEffects& effects);
 
@@ -81,7 +87,9 @@ signals:
     void sequenceDurationChanged();
     void positionChanged();
     void playingChanged();
+    void isMutedChanged();
     void audioLevelsChanged();
+    void backgroundColorChanged();
     void playbackError(const QString& message);
 
 private slots:
@@ -108,6 +116,7 @@ private:
     bool isInClipRange(double timelineSeconds) const;
     double toClipTime(double timelineSeconds) const;
     void clearFrameToBlack();
+    bool isVideoImage() const;
 
     QString m_clipName;
     QString m_filePath;
@@ -124,6 +133,7 @@ private:
     double m_sequenceDuration = 0.0;
     double m_sourceInPoint = 0.0;
     bool m_playing = false;
+    bool m_isMuted = false;
     bool m_hasVideo = false;
     bool m_hasAudio = false;
     bool m_videoEof = false;
@@ -137,6 +147,7 @@ private:
     QElapsedTimer m_clock;
     QElapsedTimer m_positionNotifyClock;
     qint64 m_lastPositionNotifyMs = -1;
+    QColor m_backgroundColor = QColor(QStringLiteral("#0b1115"));
     AudioEngine m_audioEngine;
     QByteArray m_pendingAudio;
 
