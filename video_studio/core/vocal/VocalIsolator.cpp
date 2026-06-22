@@ -10,6 +10,8 @@
 #include <QRegularExpression>
 #include <QCryptographicHash>
 #include <QProcessEnvironment>
+#include <QtConcurrent>
+#include "dsp/VocalRemover.h"
 
 #ifdef Q_OS_WIN
 extern "C" __declspec(dllimport) int __stdcall CreateHardLinkW(
@@ -87,11 +89,11 @@ VocalIsolator::VocalIsolator(QObject* parent) : QObject(parent)
 VocalIsolator::~VocalIsolator()
 {
     for (auto& data : m_processes) {
-        if (data.process->state() != QProcess::NotRunning) {
-            data.process->kill();
-            data.process->waitForFinished();
+        if (!data.watcher->isFinished()) {
+            data.watcher->cancel();
+            data.watcher->waitForFinished();
         }
-        delete data.process;
+        delete data.watcher;
     }
 }
 
@@ -124,10 +126,10 @@ void VocalIsolator::requestIsolation(int clipIndex, const QString& sourceFilePat
     }
 
     QString cacheKey = cacheKeyForSource(sourceInfo);
-    QString htdemucsDir = QDir(outputDir).absoluteFilePath("htdemucs/" + cacheKey);
+    QString uvrDir = QDir(outputDir).absoluteFilePath("uvr/" + cacheKey);
     
-    QString vocalsPath = QDir(htdemucsDir).absoluteFilePath("vocals.wav");
-    QString noVocalsPath = QDir(htdemucsDir).absoluteFilePath("no_vocals.wav");
+    QString vocalsPath = QDir(uvrDir).absoluteFilePath("vocals.wav");
+    QString noVocalsPath = QDir(uvrDir).absoluteFilePath("no_vocals.wav");
 
     QString resultFilePath;
     if (isolationType == 1) {
@@ -168,69 +170,42 @@ void VocalIsolator::requestIsolation(int clipIndex, const QString& sourceFilePat
         }
     }
 
-    QProcess* process = new QProcess(this);
+    QDir().mkpath(uvrDir);
+
+    QFutureWatcher<bool>* watcher = new QFutureWatcher<bool>(this);
     
     ProcessData pd;
-    pd.process = process;
+    pd.watcher = watcher;
     pd.sourceFilePath = sourceFilePath;
     pd.isolationType = isolationType;
     pd.outputDir = outputDir;
     pd.tempFilePath = tempFilePath;
     pd.tempWorkDir = tempWorkDir;
     pd.cacheKey = cacheKey;
-    pd.stderrBuffer = "";
     m_processes[clipIndex] = pd;
 
-    connect(process, &QProcess::readyReadStandardError, this, [this, clipIndex]() {
-        onProcessReadyReadStandardError(clipIndex);
-    });
-    connect(process, &QProcess::finished, this, [this, clipIndex](int exitCode, QProcess::ExitStatus exitStatus) {
-        onProcessFinished(clipIndex, exitCode, exitStatus);
-    });
-    connect(process, &QProcess::errorOccurred, this, [this, clipIndex](QProcess::ProcessError error) {
-        onProcessErrorOccurred(clipIndex, error);
+    connect(watcher, &QFutureWatcher<bool>::finished, this, [this, clipIndex]() {
+        onProcessFinished(clipIndex);
     });
 
-    const QString pythonExecutable = QStandardPaths::findExecutable(QStringLiteral("python"));
-    if (pythonExecutable.isEmpty()) {
-        qWarning() << "Python executable was not found for vocal isolation.";
-        m_processes.remove(clipIndex);
-        removeTempInput(tempFilePath, tempWorkDir);
-        process->deleteLater();
-        emit isolationFinished(clipIndex, isolationType, QString(), false);
-        return;
-    }
+    QFuture<bool> future = QtConcurrent::run([this, tempFilePath, resultFilePath, isolationType, clipIndex]() -> bool {
+        vocal_advance::VocalRemover remover;
+        vocal_advance::VocalRemover::Config config;
+        config.isolationType = isolationType;
+        config.useAiModel = true;
+        
+        // Find the absolute path of the downloaded Demucs ONNX model
+        // We know it's in c:\we_hunting\video_studio\build_mingw\models\htdemucs_ft_vocals.onnx
+        config.modelPath = QStringLiteral("C:/we_hunting/video_studio/build_mingw/models/htdemucs_ft_vocals.onnx");
+        
+        bool success = remover.process(tempFilePath, resultFilePath, config, [this, clipIndex](int progress) {
+            emit progressChanged(clipIndex, progress);
+        });
 
-    const QString appDir = QCoreApplication::applicationDirPath();
-    const QString runnerPath = QDir(appDir).absoluteFilePath(QStringLiteral("demucs_runner.py"));
-    if (!QFileInfo::exists(runnerPath)) {
-        qWarning() << "Demucs runner was not found:" << runnerPath;
-        m_processes.remove(clipIndex);
-        removeTempInput(tempFilePath, tempWorkDir);
-        process->deleteLater();
-        emit isolationFinished(clipIndex, isolationType, QString(), false);
-        return;
-    }
+        return success;
+    });
 
-    QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
-    const QString currentPath = environment.value(QStringLiteral("PATH"));
-    environment.insert(
-        QStringLiteral("PATH"),
-        appDir + (currentPath.isEmpty() ? QString() : QStringLiteral(";") + currentPath)
-    );
-    process->setProcessEnvironment(environment);
-    process->setWorkingDirectory(appDir);
-
-    QStringList args;
-    args << runnerPath
-         << "--two-stems" << "vocals"
-         << "--segment" << "7"
-         << "--jobs" << "1"
-         << tempFilePath
-         << "-o" << outputDir;
-    
-    qDebug() << "Starting demucs:" << pythonExecutable << args;
-    process->start(pythonExecutable, args);
+    watcher->setFuture(future);
 }
 
 void VocalIsolator::cancelIsolation(int clipIndex)
@@ -240,84 +215,46 @@ void VocalIsolator::cancelIsolation(int clipIndex)
     }
 
     ProcessData pd = m_processes.take(clipIndex);
-    pd.process->disconnect(this);
-    if (pd.process->state() != QProcess::NotRunning) {
-        pd.process->terminate();
-        if (!pd.process->waitForFinished(1500)) {
-            pd.process->kill();
-            pd.process->waitForFinished(1500);
-        }
+    pd.watcher->disconnect(this);
+    if (!pd.watcher->isFinished()) {
+        pd.watcher->cancel();
+        pd.watcher->waitForFinished();
     }
     removeTempInput(pd.tempFilePath, pd.tempWorkDir);
-    pd.process->deleteLater();
+    pd.watcher->deleteLater();
 }
 
-void VocalIsolator::onProcessReadyReadStandardError(int clipIndex)
-{
-    if (!m_processes.contains(clipIndex)) return;
-    
-    QProcess* process = m_processes[clipIndex].process;
-    QString errOutput = QString::fromUtf8(process->readAllStandardError());
-    m_processes[clipIndex].stderrBuffer.append(errOutput);
-    
-    static QRegularExpression re("(\\d+)%");
-    QRegularExpressionMatch match = re.match(errOutput);
-    // Find the last match in the string
-    int lastProgress = -1;
-    QRegularExpressionMatchIterator i = re.globalMatch(errOutput);
-    while (i.hasNext()) {
-        QRegularExpressionMatch m = i.next();
-        lastProgress = m.captured(1).toInt();
-    }
-    
-    if (lastProgress >= 0) {
-        emit progressChanged(clipIndex, lastProgress);
-    }
-}
-
-void VocalIsolator::onProcessFinished(int clipIndex, int exitCode, QProcess::ExitStatus exitStatus)
+void VocalIsolator::onProcessFinished(int clipIndex)
 {
     if (!m_processes.contains(clipIndex)) return;
     
     ProcessData pd = m_processes.take(clipIndex);
-    bool success = (exitStatus == QProcess::NormalExit && exitCode == 0);
+    bool success = pd.watcher->result();
     
     if (!success) {
-        qWarning() << "demucs process failed. Exit code:" << exitCode;
-        qWarning() << pd.stderrBuffer;
+        qWarning() << "VocalRemover process failed.";
     }
     
-    QString htdemucsDir = QDir(pd.outputDir).absoluteFilePath("htdemucs/" + pd.cacheKey);
+    QString uvrDir = QDir(pd.outputDir).absoluteFilePath("uvr/" + pd.cacheKey);
     
     QString resultFilePath;
     if (pd.isolationType == 1) {
-        resultFilePath = QDir(htdemucsDir).absoluteFilePath("no_vocals.wav");
+        resultFilePath = QDir(uvrDir).absoluteFilePath("no_vocals.wav");
     } else if (pd.isolationType == 2) {
-        resultFilePath = QDir(htdemucsDir).absoluteFilePath("vocals.wav");
+        resultFilePath = QDir(uvrDir).absoluteFilePath("vocals.wav");
     }
 
     success = success && QFileInfo::exists(resultFilePath);
     if (!success) {
-        qWarning() << "demucs did not produce expected output:" << resultFilePath;
-        QDir outputDir(htdemucsDir);
-        if (outputDir.exists()) {
-            outputDir.removeRecursively();
+        qWarning() << "VocalRemover did not produce expected output:" << resultFilePath;
+        QDir outputDirObj(uvrDir);
+        if (outputDirObj.exists()) {
+            outputDirObj.removeRecursively();
         }
     }
 
     emit isolationFinished(clipIndex, pd.isolationType, resultFilePath, success);
     
     removeTempInput(pd.tempFilePath, pd.tempWorkDir);
-    pd.process->deleteLater();
-}
-
-void VocalIsolator::onProcessErrorOccurred(int clipIndex, QProcess::ProcessError error)
-{
-    if (!m_processes.contains(clipIndex)) return;
-
-    ProcessData pd = m_processes.take(clipIndex);
-    qWarning() << "demucs process error:" << error << pd.process->errorString();
-    emit isolationFinished(clipIndex, pd.isolationType, QString(), false);
-    removeTempInput(pd.tempFilePath, pd.tempWorkDir);
-    pd.process->deleteLater();
+    pd.watcher->deleteLater();
 }

@@ -3,64 +3,25 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Effects
+import VideoStudio.Models 1.0
 import VideoStudioUI
 
 Rectangle {
     id: effectHubRoot
     color: Theme.background
-    
-    ListModel {
+    EffectHubModel {
         id: effectsModel
     }
     
-    property string currentCategory: "Trending"
+    property string currentCategory: "All"
     
     function loadEffects(category) {
         currentCategory = category;
-        effectsModel.clear();
-        if (category === "Trending") {
-            effectsModel.append({title: "Halo Blur"});
-            effectsModel.append({title: "Smart Sharpen"});
-            effectsModel.append({title: "Edge Glow"});
-            effectsModel.append({title: "Zoom 3D"});
-            effectsModel.append({title: "Camera Shake"});
-            effectsModel.append({title: "Fisheye"});
-        } else if (category === "Basic") {
-            effectsModel.append({title: "Diamond Zoom"});
-            effectsModel.append({title: "Slow Zoom"});
-            effectsModel.append({title: "Blur"});
-            effectsModel.append({title: "Slanted Blur"});
-        } else if (category === "Bling") {
-            effectsModel.append({title: "Sparkle"});
-            effectsModel.append({title: "Kira"});
-            effectsModel.append({title: "Star"});
-            effectsModel.append({title: "Starlight"});
-        } else if (category === "Party") {
-            effectsModel.append({title: "Strobe"});
-            effectsModel.append({title: "Neon Outline"});
-            effectsModel.append({title: "Color Negative"});
-            effectsModel.append({title: "Club Lights"});
-        } else if (category === "Retro") {
-            effectsModel.append({title: "Film Frame"});
-            effectsModel.append({title: "VHS"});
-            effectsModel.append({title: "1998"});
-            effectsModel.append({title: "Noise"});
-            effectsModel.append({title: "Nostalgia"});
-        } else if (category === "Transitions") {
-            effectsModel.append({title: "Pull In"});
-            effectsModel.append({title: "Pull Out"});
-            effectsModel.append({title: "Spin CW"});
-            effectsModel.append({title: "Spin CCW"});
-            effectsModel.append({title: "Cross Dissolve"});
-        } else {
-            // Default empty state placeholders
-            effectsModel.append({title: "Effect 1"});
-            effectsModel.append({title: "Effect 2"});
-            effectsModel.append({title: "Effect 3"});
-        }
+        effectsModel.loadEffects(category);
     }
     
-    Component.onCompleted: loadEffects("Trending")
+    Component.onCompleted: loadEffects("All")
     
     ColumnLayout {
         anchors.fill: parent
@@ -98,11 +59,15 @@ Rectangle {
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
                     placeholderText: qsTr("Search Effects")
-                    color: "#dce4e7"
-                    placeholderTextColor: "#6f8188"
+                    color: Theme.text
+                    placeholderTextColor: Theme.textMuted
                     font.pixelSize: 13
                     selectByMouse: true
                     background: Item {}
+                    
+                    onTextChanged: {
+                        effectsModel.search(text)
+                    }
                 }
             }
         }
@@ -130,7 +95,7 @@ Rectangle {
                         width: parent.width
                         spacing: 2
                         
-                        CategoryButton { title: "Favorites" }
+                        CategoryButton { title: "All" }
                         CategoryButton { title: "Trending" }
                         CategoryButton { title: "Basic" }
                         CategoryButton { title: "Bling" }
@@ -157,8 +122,8 @@ Rectangle {
                     id: effectsGrid
                     anchors.fill: parent
                     anchors.margins: 12
-                    cellWidth: 84
-                    cellHeight: 100
+                    cellWidth: 110
+                    cellHeight: 130
                     model: effectsModel
                     clip: true
                     
@@ -169,6 +134,8 @@ Rectangle {
                     delegate: Item {
                         id: effectDelegateRoot
                         required property string title
+                        required property url fileURL
+                        
                         width: effectsGrid.cellWidth
                         height: effectsGrid.cellHeight
                         
@@ -176,22 +143,84 @@ Rectangle {
                             id: effectThumb
                             anchors.top: parent.top
                             anchors.horizontalCenter: parent.horizontalCenter
-                            width: 64
-                            height: 64
-                            radius: 8
+                            width: 96
+                            height: 96
+                            radius: 12
                             color: "#1c2830"
                             border.color: thumbMouse.containsMouse ? "#66aacf" : "#304352"
                             border.width: 1
                             
                             clip: true
                             
-                            Image {
+                            AnimatedImage {
+                                id: effectAnimImage
                                 anchors.fill: parent
                                 anchors.margins: 1
-                                source: effectHubRoot.currentCategory === "Retro" ? "qrc:/VideoStudioUI/assets/retro_effect.png" : 
-                                        effectHubRoot.currentCategory === "Party" || effectHubRoot.currentCategory === "Bling" ? "qrc:/VideoStudioUI/assets/party_effect.png" : 
-                                        "qrc:/VideoStudioUI/assets/trending_effect.png"
+                                source: fileURL
                                 fillMode: Image.PreserveAspectCrop
+                                asynchronous: true
+                                sourceSize.width: 96
+                                sourceSize.height: 96
+                                playing: thumbMouse.containsMouse
+                                visible: false
+                            }
+                            
+                            Rectangle {
+                                id: maskRect
+                                anchors.fill: effectAnimImage
+                                radius: 12
+                                color: "black"
+                                visible: false
+                                layer.enabled: true
+                            }
+                            
+                            MultiEffect {
+                                anchors.fill: effectAnimImage
+                                source: effectAnimImage
+                                maskEnabled: true
+                                maskSource: maskRect
+                            }
+                            
+                            // Star Icon
+                            Rectangle {
+                                width: 22
+                                height: 22
+                                radius: 4
+                                color: "#80000000"
+                                anchors.right: addButton.left
+                                anchors.rightMargin: 4
+                                anchors.bottom: parent.bottom
+                                anchors.bottomMargin: 4
+                                visible: thumbMouse.containsMouse
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "☆"
+                                    color: "white"
+                                    font.pixelSize: 16
+                                    anchors.verticalCenterOffset: -1
+                                }
+                            }
+                            
+                            // Add Button
+                            Rectangle {
+                                id: addButton
+                                width: 22
+                                height: 22
+                                radius: 11
+                                color: "#00c4cc"
+                                anchors.right: parent.right
+                                anchors.rightMargin: 4
+                                anchors.bottom: parent.bottom
+                                anchors.bottomMargin: 4
+                                visible: thumbMouse.containsMouse
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "+"
+                                    color: "white"
+                                    font.pixelSize: 18
+                                    font.bold: true
+                                    anchors.verticalCenterOffset: -2
+                                }
                             }
                             
                             MouseArea {
@@ -207,11 +236,10 @@ Rectangle {
                             anchors.left: parent.left
                             anchors.right: parent.right
                             text: effectDelegateRoot.title
-                            color: "#dce4e7"
-                            font.pixelSize: 11
+                            color: Theme.text
+                            font.pixelSize: 12
                             horizontalAlignment: Text.AlignHCenter
-                            wrapMode: Text.WordWrap
-                            maximumLineCount: 2
+                            maximumLineCount: 1
                             elide: Text.ElideRight
                         }
                     }
@@ -240,7 +268,7 @@ Rectangle {
             anchors.leftMargin: 16
             anchors.verticalCenter: parent.verticalCenter
             text: categoryButtonRoot.title
-            color: effectHubRoot.currentCategory === categoryButtonRoot.title ? "#ffffff" : "#aeb9be"
+            color: effectHubRoot.currentCategory === categoryButtonRoot.title ? Theme.text : "#aeb9be"
             font.pixelSize: 13
             font.bold: effectHubRoot.currentCategory === categoryButtonRoot.title
         }

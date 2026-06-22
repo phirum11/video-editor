@@ -27,32 +27,44 @@ Rectangle {
     property bool linkedSelection: true
     property bool snapEnabled: true
 
-    signal selectedRequested(int index)
+    signal selectedRequested(int index, bool toggle)
     signal previewRequested(string name, string path, real duration, bool video)
     signal deleteRequested(int index, string path)
     signal splitRequested(int index, real seconds, bool linked)
     signal moveRequested(int index, real startSeconds, int trackIndex, bool linked)
     signal trimLeftRequested(int index, real deltaSeconds, bool linked)
     signal trimRightRequested(int index, real deltaSeconds, bool linked)
+    
+    signal dragStarted()
+    signal dragUpdated(real deltaSeconds, int deltaTrack)
+    signal dragFinished()
+
+    property real dragOffsetSeconds: 0
+    property int dragOffsetTrack: 0
+    property real trimOffsetLeft: 0
+    property real trimOffsetRight: 0
 
     readonly property bool isSubtitle: !hasVideo && !hasAudio
     
-    x: startSeconds * pixelsPerSecond
-    y: (trackIndex < 3 ? trackIndex * trackHeight : trackIndex * trackHeight + separatorHeight) + (isSubtitle ? trackHeight - 20 - 4 : 4)
-    width: Math.max(minClipWidth, durationSeconds * pixelsPerSecond)
+    readonly property real pixelStartX: Math.round((startSeconds + dragOffsetSeconds + trimOffsetLeft) * pixelsPerSecond)
+    readonly property real pixelEndX: Math.round((startSeconds + dragOffsetSeconds + durationSeconds + trimOffsetRight) * pixelsPerSecond)
+    
+    x: pixelStartX
+    y: {
+        let t = trackIndex + dragOffsetTrack
+        t = Math.max(0, Math.min(5, t))
+        return (t < 3 ? t * trackHeight : t * trackHeight + separatorHeight) + (isSubtitle ? trackHeight - 20 - 4 : 4)
+    }
+    width: Math.max(isSubtitle ? 24 : 1, pixelEndX - pixelStartX)
     height: isSubtitle ? 20 : trackHeight - 8
-    radius: 4
-    color: hasVideo ? "#0c3a4a" : "#2a1f3e"
+    radius: 2
+    color: isSubtitle ? "#cc5540" : (hasVideo ? "#0c3a4a" : "#2a1f3e")
     clip: true
     z: selected ? 4 : 3
 
-    border.color: selected ? "#5ec4e8" : "transparent"
+    border.color: selected ? "white" : "transparent"
     border.width: selected ? 1.5 : 0
 
-    readonly property int filmFrameWidth: 64
-    readonly property int filmFrameCount: hasVideo && width > 80
-        ? Math.max(1, Math.min(20, Math.ceil(width / filmFrameWidth)))
-        : 0
     readonly property int waveformBarCount: hasAudio && width > 28
         ? Math.max(20, Math.min(400, Math.floor(width / 1.5)))
         : 0
@@ -61,39 +73,74 @@ Rectangle {
         : (height - 18)
 
     function snapTime(seconds) {
-        if (!snapEnabled)
-            return Math.max(0, seconds)
-        return Math.max(0, Math.round(seconds * 4) / 4)
+        return Math.max(0, seconds)
     }
 
     function isEditTool() {
         return activeTool === "selection" || activeTool === "ripple" || activeTool === "slip"
     }
 
+    // We use a fixed number of thumbnails (around 40) per clip to prevent 
+    // re-rendering and re-fetching from FFmpeg when the user zooms in or out.
+    // The frames will just resize and tile instantly without lag.
+    readonly property real thumbInterval: Math.max(0.5, clipRoot.durationSeconds / 40)
+    readonly property int filmFrameCount: hasVideo ? Math.ceil(clipRoot.durationSeconds / thumbInterval) : 0
+
     // FILMSTRIP — fills the clip behind everything
-    Row {
-        id: filmstrip
+    Item {
+        id: filmstripContainer
         anchors.left: parent.left       
         anchors.right: parent.right     
         anchors.top: parent.top   
         anchors.bottom: clipRoot.hasAudio && clipRoot.hasVideo ? waveform.top : parent.bottom
-        visible: clipRoot.hasVideo && clipRoot.filmFrameCount > 0
-        spacing: 1
+        visible: clipRoot.hasVideo
         clip: true
 
-        Repeater {
-            model: clipRoot.filmFrameCount
+        readonly property bool isImageClip: clipRoot.filePath.match(/\.(jpg|jpeg|png|webp|bmp)$/i) !== null
 
-            Image {
-                required property int index
+        // Static Images - ONE tiled image that repeats perfectly at its native aspect ratio
+        Image {
+            anchors.fill: parent
+            visible: parent.isImageClip
+            
+            sourceSize.height: Math.max(1, parent.height)
+            
+            source: (parent.isImageClip && parent.height > 0) ? "image://media/" + encodeURIComponent(
+                (clipRoot.originalFilePath !== "" ? clipRoot.originalFilePath : clipRoot.filePath) + "|0.0"
+            ) : ""
+            asynchronous: true
+            fillMode: Image.PreserveAspectFit
+        }
 
-                width: Math.max(1, (filmstrip.width - Math.max(0, clipRoot.filmFrameCount - 1)) / Math.max(1, clipRoot.filmFrameCount))
-                height: filmstrip.height
-                source: "image://media/" + encodeURIComponent(
-                    (clipRoot.originalFilePath !== "" ? clipRoot.originalFilePath : clipRoot.filePath) + "|" + (clipRoot.durationSeconds * (index + 0.5) / Math.max(1, clipRoot.filmFrameCount))
-                )
-                asynchronous: true
-                fillMode: Image.PreserveAspectCrop
+        // Video clips - Repeater with sequential thumbnails
+        Row {
+            anchors.fill: parent
+            visible: !parent.isImageClip
+            spacing: 0
+
+            Repeater {
+                model: parent.visible ? clipRoot.filmFrameCount : 0
+
+                Image {
+                    required property int index
+                    
+                    readonly property real startTime: index * clipRoot.thumbInterval
+                    readonly property real endTime: Math.min((index + 1) * clipRoot.thumbInterval, clipRoot.durationSeconds)
+                    
+                    width: Math.max(1, (endTime - startTime) * clipRoot.pixelsPerSecond)
+                    height: parent.height
+                    
+                    sourceSize.height: Math.max(1, parent.height)
+                    
+                    source: (!filmstripContainer.isImageClip && parent.height > 0) ? "image://media/" + encodeURIComponent(
+                        (clipRoot.originalFilePath !== "" ? clipRoot.originalFilePath : clipRoot.filePath) + "|" + (startTime + 0.1)
+                    ) : ""
+                    asynchronous: true
+                    fillMode: Image.Tile
+                    verticalAlignment: Image.AlignTop
+                    horizontalAlignment: Image.AlignLeft
+                    clip: true
+                }
             }
         }
     }
@@ -112,18 +159,38 @@ Rectangle {
             GradientStop { position: 1.0; color: "transparent" }
         }
 
-        Text {
+        Rectangle {
+            id: subtitleIcon
             anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            width: 16
+            height: 16
+            radius: 2
+            color: "#e86a53"
+            visible: clipRoot.isSubtitle
+
+            Text {
+                anchors.centerIn: parent
+                text: "A"
+                color: "white"
+                font.pixelSize: 10
+                font.weight: Font.Bold
+            }
+        }
+
+        Text {
+            anchors.left: clipRoot.isSubtitle ? subtitleIcon.right : parent.left
             anchors.leftMargin: 8
             anchors.right: durationText.visible ? durationText.left : parent.right
             anchors.rightMargin: 6
             anchors.verticalCenter: parent.verticalCenter
             text: clipRoot.clipName
-            color: "#f0f8fa"
+            color: Theme.text
             font.pixelSize: 11
             font.weight: Font.Medium
             elide: Text.ElideRight
             verticalAlignment: Text.AlignVCenter
+            visible: clipRoot.width > (clipRoot.isSubtitle ? 32 : 16)
         }
 
         Text {
@@ -172,6 +239,23 @@ Rectangle {
         }
     }
 
+    // MUTED OVERLAY — dims clip and shows muted indicator
+    Rectangle {
+        anchors.fill: waveform
+        // qmllint disable unqualified
+        visible: clipRoot.hasAudio && (typeof isMuted !== "undefined" ? isMuted : false)
+        // qmllint enable unqualified
+        color: "#cc000000"
+        z: 5
+
+        Text {
+            anchors.centerIn: parent
+            text: "🔇"
+            font.pixelSize: 14
+            visible: parent.height >= 16
+        }
+    }
+
     // DELETE BUTTON — clean circle, top-right
     Rectangle {
         id: deleteClipButton
@@ -189,7 +273,7 @@ Rectangle {
         Text {
             anchors.centerIn: parent
             text: "\u00d7"
-            color: "#ffffff"
+            color: Theme.text
             font.pixelSize: 12
             font.weight: Font.DemiBold
         }
@@ -198,6 +282,7 @@ Rectangle {
             id: deleteClipMouse
             anchors.fill: parent
             hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
             onClicked: clipRoot.deleteRequested(clipRoot.clipIndex, clipRoot.filePath)
         }
     }
@@ -206,11 +291,11 @@ Rectangle {
     Rectangle {
         anchors.fill: parent
         color: "transparent"
-        border.color: clipRoot.selected ? "#5ec4e8" : (clipRoot.hasVideo ? "#1a6a7a" : "#4a3a6a")
+        border.color: clipRoot.selected ? "#5ec4e8" : (clipRoot.hasVideo ? "#2a8a9a" : "#6a5a8a")
         border.width: clipRoot.selected ? 1.5 : 1
         radius: clipRoot.radius
         z: 8
-        opacity: clipRoot.selected ? 1.0 : 0.6
+        opacity: clipRoot.selected ? 1.0 : 0.8
     }
 
     MouseArea {
@@ -230,10 +315,17 @@ Rectangle {
             ? Qt.CrossCursor
             : clipRoot.activeTool === "hand"
                 ? Qt.OpenHandCursor
-                : Qt.ArrowCursor
+                : (clipDrag.active ? Qt.ClosedHandCursor : Qt.PointingHandCursor)
 
         onPressed: function(mouse) {
-            clipRoot.selectedRequested(clipRoot.clipIndex)
+            if (mouse.button === Qt.RightButton) {
+                if (!clipRoot.selected) {
+                    clipRoot.selectedRequested(clipRoot.clipIndex, false)
+                }
+            } else {
+                const toggle = (mouse.modifiers & Qt.ControlModifier) || (mouse.modifiers & Qt.ShiftModifier)
+                clipRoot.selectedRequested(clipRoot.clipIndex, toggle !== 0)
+            }
             if (clipRoot.hasVideo || clipRoot.hasAudio) {
                 clipRoot.previewRequested(clipRoot.clipName, clipRoot.filePath, clipRoot.durationSeconds, clipRoot.hasVideo)
             }
@@ -254,19 +346,32 @@ Rectangle {
     DragHandler {
         id: clipDrag
         target: null
+        dragThreshold: 3
+        enabled: !(leftTrimMouse.containsMouse || leftTrimMouse.pressed || rightTrimMouse.containsMouse || rightTrimMouse.pressed)
         onActiveChanged: {
             if (active) {
                 clipMouse.originalStart = clipRoot.startSeconds
                 clipMouse.originalTrack = clipRoot.trackIndex
+                clipRoot.dragStarted()
+            } else {
+                if (clipRoot.isEditTool() && (clipRoot.dragOffsetSeconds !== 0 || clipRoot.dragOffsetTrack !== 0)) {
+                    const nextStart = Math.max(0, clipRoot.snapTime(clipMouse.originalStart + clipRoot.dragOffsetSeconds))
+                    let nextTrack = clipMouse.originalTrack + clipRoot.dragOffsetTrack
+                    nextTrack = clipMouse.originalTrack < 100 ? Math.max(0, nextTrack) : Math.max(100, nextTrack)
+                    clipRoot.moveRequested(clipRoot.clipIndex, nextStart, nextTrack, clipRoot.linkedSelection)
+                }
+                clipRoot.dragFinished()
             }
         }
         onTranslationChanged: {
             if (!active || !clipRoot.isEditTool()) return
             const deltaX = translation.x
             const deltaY = translation.y
-            const nextStart = clipRoot.snapTime(clipMouse.originalStart + deltaX / Math.max(1, clipRoot.pixelsPerSecond))
-            const nextTrack = Math.max(0, Math.min(5, clipMouse.originalTrack + Math.round(deltaY / clipRoot.trackHeight)))
-            clipRoot.moveRequested(clipRoot.clipIndex, nextStart, nextTrack, clipRoot.linkedSelection)
+            const deltaSec = deltaX / Math.max(1, clipRoot.pixelsPerSecond)
+            let deltaTrack = Math.round(deltaY / clipRoot.trackHeight)
+            let maxDeltaDown = clipMouse.originalTrack < 100 ? -clipMouse.originalTrack : -(clipMouse.originalTrack - 100)
+            deltaTrack = Math.max(maxDeltaDown, deltaTrack)
+            clipRoot.dragUpdated(deltaSec, deltaTrack)
         }
     }
     Rectangle {
@@ -277,7 +382,7 @@ Rectangle {
         width: 12
         color: "white"
         radius: 4
-        visible: clipRoot.selected && (leftTrimMouse.containsMouse || leftTrimMouse.pressed || rightTrimMouse.containsMouse || rightTrimMouse.pressed || clipMouse.containsMouse)
+        visible: clipRoot.selected && clipRoot.width > 24 && (leftTrimMouse.containsMouse || leftTrimMouse.pressed || rightTrimMouse.containsMouse || rightTrimMouse.pressed || clipMouse.containsMouse)
         z: 9
         opacity: leftTrimMouse.containsMouse || leftTrimMouse.pressed ? 1.0 : 0.0
 
@@ -296,7 +401,7 @@ Rectangle {
             anchors.margins: -4
             hoverEnabled: true
             cursorShape: Qt.SizeHorCursor
-            property real lastX: 0
+            property real totalDeltaX: 0
         }
 
         DragHandler {
@@ -304,15 +409,27 @@ Rectangle {
             target: null
             onActiveChanged: {
                 if (active) {
-                    leftTrimMouse.lastX = 0
+                    leftTrimMouse.totalDeltaX = 0
+                } else {
+                    const deltaSeconds = leftTrimMouse.totalDeltaX / Math.max(1, clipRoot.pixelsPerSecond)
+                    if (deltaSeconds !== 0) {
+                        clipRoot.trimLeftRequested(clipRoot.clipIndex, deltaSeconds, clipRoot.linkedSelection)
+                    }
+                    clipRoot.trimOffsetLeft = 0
                 }
             }
             onTranslationChanged: {
                 if (!active) return
-                const deltaX = translation.x - leftTrimMouse.lastX
-                leftTrimMouse.lastX = translation.x
-                const deltaSeconds = deltaX / Math.max(1, clipRoot.pixelsPerSecond)
-                clipRoot.trimLeftRequested(clipRoot.clipIndex, deltaSeconds, clipRoot.linkedSelection)
+                const minSec = Math.max(0.1, 12 / Math.max(1, clipRoot.pixelsPerSecond))
+                const maxPositiveDelta = Math.max(0, clipRoot.durationSeconds - minSec)
+                
+                let validDeltaSec = translation.x / Math.max(1, clipRoot.pixelsPerSecond)
+                if (validDeltaSec > maxPositiveDelta) {
+                    validDeltaSec = maxPositiveDelta
+                }
+                
+                leftTrimMouse.totalDeltaX = validDeltaSec * Math.max(1, clipRoot.pixelsPerSecond)
+                clipRoot.trimOffsetLeft = validDeltaSec
             }
         }
     }
@@ -344,7 +461,7 @@ Rectangle {
             anchors.margins: -4
             hoverEnabled: true
             cursorShape: Qt.SizeHorCursor
-            property real lastX: 0
+            property real totalDeltaX: 0
         }
 
         DragHandler {
@@ -352,15 +469,27 @@ Rectangle {
             target: null
             onActiveChanged: {
                 if (active) {
-                    rightTrimMouse.lastX = 0
+                    rightTrimMouse.totalDeltaX = 0
+                } else {
+                    const deltaSeconds = rightTrimMouse.totalDeltaX / Math.max(1, clipRoot.pixelsPerSecond)
+                    if (deltaSeconds !== 0) {
+                        clipRoot.trimRightRequested(clipRoot.clipIndex, deltaSeconds, clipRoot.linkedSelection)
+                    }
+                    clipRoot.trimOffsetRight = 0
                 }
             }
             onTranslationChanged: {
                 if (!active) return
-                const deltaX = translation.x - rightTrimMouse.lastX
-                rightTrimMouse.lastX = translation.x
-                const deltaSeconds = deltaX / Math.max(1, clipRoot.pixelsPerSecond)
-                clipRoot.trimRightRequested(clipRoot.clipIndex, deltaSeconds, clipRoot.linkedSelection)
+                const minSec = Math.max(0.1, 12 / Math.max(1, clipRoot.pixelsPerSecond))
+                const maxNegativeDelta = -Math.max(0, clipRoot.durationSeconds - minSec)
+                
+                let validDeltaSec = translation.x / Math.max(1, clipRoot.pixelsPerSecond)
+                if (validDeltaSec < maxNegativeDelta) {
+                    validDeltaSec = maxNegativeDelta
+                }
+                
+                rightTrimMouse.totalDeltaX = validDeltaSec * Math.max(1, clipRoot.pixelsPerSecond)
+                clipRoot.trimOffsetRight = validDeltaSec
             }
         }
     }
@@ -379,8 +508,10 @@ Rectangle {
         id: clipContextMenu
         clipIndex: clipRoot.clipIndex
         vocalIsolationType: clipRoot.vocalIsolationType
-        // Resolve timelineController from parent scope (TimelineTracks.qml has backend)
+        clipHasAudio: clipRoot.hasAudio
         // qmllint disable unqualified
+        clipIsMuted: typeof isMuted !== "undefined" ? isMuted : false
+        // Resolve timelineController from parent scope (TimelineTracks.qml has backend)
         timelineController: typeof backend !== "undefined" ? backend : null
         // qmllint enable unqualified
     }

@@ -6,13 +6,15 @@ EffectController::EffectController(QObject *parent) : QObject(parent),
     m_color(new ColorEffect(this)),
     m_blur(new BlurEffect(this)),
     m_stylize(new StylizeEffect(this)),
-    m_audio(new AudioEffect(this))
+    m_audio(new AudioEffect(this)),
+    m_chromaKey(new ChromaKeyEffect(this))
 {
     connect(m_transform, &TransformEffect::modified, this, &EffectController::onEffectModified);
     connect(m_color, &ColorEffect::modified, this, &EffectController::onEffectModified);
     connect(m_blur, &BlurEffect::modified, this, &EffectController::onEffectModified);
     connect(m_stylize, &StylizeEffect::modified, this, &EffectController::onEffectModified);
     connect(m_audio, &AudioEffect::modified, this, &EffectController::onEffectModified);
+    connect(m_chromaKey, &ChromaKeyEffect::modified, this, &EffectController::onEffectModified);
 }
 
 EffectController::~EffectController()
@@ -25,14 +27,14 @@ void EffectController::setTimelineController(TimelineController* controller)
         return;
 
     if (m_timelineController) {
-        disconnect(m_timelineController, &TimelineController::selectedClipIndexChanged, this, &EffectController::onSelectedClipIndexChanged);
+        disconnect(m_timelineController, &TimelineController::selectedClipIndicesChanged, this, &EffectController::onSelectedClipIndexChanged);
     }
 
     m_timelineController = controller;
 
     if (m_timelineController) {
         m_clipModel = qobject_cast<TimelineClipModel*>(m_timelineController->clipModel());
-        connect(m_timelineController, &TimelineController::selectedClipIndexChanged, this, &EffectController::onSelectedClipIndexChanged);
+        connect(m_timelineController, &TimelineController::selectedClipIndicesChanged, this, &EffectController::onSelectedClipIndexChanged);
     } else {
         m_clipModel = nullptr;
     }
@@ -59,7 +61,7 @@ void EffectController::onSelectedClipIndexChanged()
     if (!m_timelineController || !m_clipModel)
         return;
 
-    int row = m_timelineController->selectedClipIndex();
+    int row = m_timelineController->selectedClipIndices().isEmpty() ? -1 : m_timelineController->selectedClipIndices().first().toInt();
     loadClipEffects(row);
 }
 
@@ -70,7 +72,7 @@ void EffectController::onEffectModified()
 
     const ClipEffects effects = currentEffects();
     if (m_timelineController && m_clipModel) {
-        int row = m_timelineController->selectedClipIndex();
+        int row = m_timelineController->selectedClipIndices().isEmpty() ? -1 : m_timelineController->selectedClipIndices().first().toInt();
         if (row >= 0) {
             saveClipEffects(row);
         }
@@ -95,6 +97,7 @@ void EffectController::loadClipEffects(int row)
     m_blur->loadData(effects.blur);
     m_stylize->loadData(effects.stylize);
     m_audio->loadData(effects.audio);
+    m_chromaKey->loadData(effects.chromaKey);
 
     if (m_playbackEngine) {
         m_playbackEngine->setClipEffects(effects);
@@ -111,6 +114,7 @@ ClipEffects EffectController::currentEffects() const
     effects.blur = m_blur->toData();
     effects.stylize = m_stylize->toData();
     effects.audio = m_audio->toData();
+    effects.chromaKey = m_chromaKey->toData();
     return effects;
 }
 
@@ -130,13 +134,14 @@ void EffectController::resetAll()
     m_blur->loadData(BlurEffectData());
     m_stylize->loadData(StylizeEffectData());
     m_audio->loadData(AudioEffectData());
+    m_chromaKey->loadData(ChromaKeyEffectData());
     
     m_isUpdatingFromModel = false;
     
     // Save to model
     const ClipEffects effects = currentEffects();
     if (m_timelineController && m_clipModel) {
-        int row = m_timelineController->selectedClipIndex();
+        int row = m_timelineController->selectedClipIndices().isEmpty() ? -1 : m_timelineController->selectedClipIndices().first().toInt();
         if (row >= 0) {
             saveClipEffects(row);
         }

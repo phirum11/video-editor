@@ -99,4 +99,22 @@ private:
     bool m_firstTime;
 };
 
+// GroupClipsCommand
+class GroupClipsCommand : public QUndoCommand {
+public:
+    GroupClipsCommand(TimelineClipModel* model, const QVector<int>& rows, const QString& newGroupId, QUndoCommand* parent = nullptr);
+    void undo() override;
+    void redo() override;
+private:
+    TimelineClipModel* m_model;
+    QVector<int> m_rows;
+    QString m_newGroupId;
+    
+    struct SavedState {
+        int row;
+        QString oldGroupId;
+    };
+    QVector<SavedState> m_savedStates;
+};
+
 #endif // TIMELINECOMMANDS_H

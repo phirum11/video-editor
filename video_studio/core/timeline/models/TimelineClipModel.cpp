@@ -5,7 +5,7 @@
 
 TimelineClipModel::TimelineClipModel(QObject* parent)
     : QAbstractListModel(parent)
-{
+{   
 }
 
 int TimelineClipModel::addClip(const TimelineClip& clip)
@@ -94,7 +94,7 @@ bool TimelineClipModel::moveClip(int row, double startSeconds, int trackIndex, b
 
             m_clips[i].startSeconds = std::max(0.0, m_clips[i].startSeconds + startDelta);
             if (i == row && trackIndex >= 0) {
-                m_clips[i].trackIndex = std::clamp(trackIndex, 0, 5);
+                m_clips[i].trackIndex = std::max(0, trackIndex);
             }
             updateRow(i);
         }
@@ -103,7 +103,7 @@ bool TimelineClipModel::moveClip(int row, double startSeconds, int trackIndex, b
 
     m_clips[row].startSeconds = nextStart;
     if (trackIndex >= 0) {
-        m_clips[row].trackIndex = std::clamp(trackIndex, 0, 5);
+        m_clips[row].trackIndex = std::max(0, trackIndex);
     }
     updateRow(row);
     return true;
@@ -227,6 +227,13 @@ void TimelineClipModel::updateClipIsolationProgress(int row, int progress)
     updateRow(row);
 }
 
+void TimelineClipModel::setClipMuted(int row, bool muted)
+{
+    if (!isValidRow(row)) return;
+    m_clips[row].isMuted = muted;
+    updateRow(row);
+}
+
 QVariantMap TimelineClipModel::clipMapAt(int row) const
 {
     if (!isValidRow(row)) {
@@ -249,6 +256,7 @@ QVariantMap TimelineClipModel::clipMapAt(int row) const
     map.insert(QStringLiteral("originalFilePath"), clip.originalFilePath);
     map.insert(QStringLiteral("vocalIsolationType"), clip.vocalIsolationType);
     map.insert(QStringLiteral("isolationProgress"), clip.isolationProgress);
+    map.insert(QStringLiteral("isMuted"), clip.isMuted);
 
     return map;
 }
@@ -260,19 +268,49 @@ TimelineClip TimelineClipModel::clipAt(int row) const
 
 QString TimelineClipModel::linkGroupAt(int row) const
 {
-    return isValidRow(row) ? m_clips[row].linkGroupId : QString{};
+    if (!isValidRow(row)) return QString();
+    return m_clips[row].linkGroupId;
+}
+
+QString TimelineClipModel::groupAt(int row) const
+{
+    if (!isValidRow(row)) return QString();
+    return m_clips[row].groupId;
 }
 
 QVector<int> TimelineClipModel::getLinkedRows(const QString& linkGroupId) const
 {
     QVector<int> rows;
     if (linkGroupId.isEmpty()) return rows;
+    
     for (int i = 0; i < m_clips.size(); ++i) {
         if (m_clips[i].linkGroupId == linkGroupId) {
             rows.append(i);
         }
     }
     return rows;
+}
+
+QVector<int> TimelineClipModel::getGroupedRows(const QString& groupId) const
+{
+    QVector<int> rows;
+    if (groupId.isEmpty()) return rows;
+    
+    for (int i = 0; i < m_clips.size(); ++i) {
+        if (m_clips[i].groupId == groupId) {
+            rows.append(i);
+        }
+    }
+    return rows;
+}
+
+void TimelineClipModel::setClipGroupId(int row, const QString& groupId)
+{
+    if (!isValidRow(row)) return;
+    if (m_clips[row].groupId != groupId) {
+        m_clips[row].groupId = groupId;
+        updateRow(row);
+    }
 }
 
 bool TimelineClipModel::updateClip(int row, const TimelineClip& clip)
@@ -319,6 +357,8 @@ QVariant TimelineClipModel::data(const QModelIndex& index, int role) const
     case OriginalFilePathRole: return clip.originalFilePath;
     case VocalIsolationTypeRole: return clip.vocalIsolationType;
     case IsolationProgressRole: return clip.isolationProgress;
+    case IsMutedRole: return clip.isMuted;
+    case GroupRole: return clip.groupId;
     }
 
     return {};
@@ -340,6 +380,8 @@ QHash<int, QByteArray> TimelineClipModel::roleNames() const
     roles[OriginalFilePathRole] = "originalFilePath";
     roles[VocalIsolationTypeRole] = "vocalIsolationType";
     roles[IsolationProgressRole] = "isolationProgress";
+    roles[IsMutedRole] = "isMuted";
+    roles[GroupRole] = "groupId";
     return roles;
 }
 

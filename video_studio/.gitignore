@@ -37,3 +37,4 @@ Thumbs.db
 *.dylib
 *.a
 *.lib
+*.pdb

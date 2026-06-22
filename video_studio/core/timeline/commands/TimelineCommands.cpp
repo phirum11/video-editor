@@ -182,6 +182,29 @@ void SplitClipCommand::redo() {
     }
 }
 
+// GroupClipsCommand
+GroupClipsCommand::GroupClipsCommand(TimelineClipModel* model, const QVector<int>& rows, const QString& newGroupId, QUndoCommand* parent)
+    : QUndoCommand(parent), m_model(model), m_rows(rows), m_newGroupId(newGroupId)
+{
+    setText(newGroupId.isEmpty() ? "Ungroup Clips" : "Group Clips");
+    
+    // Save previous state
+    for (int row : m_rows) {
+        SavedState state;
+        state.row = row;
+        state.oldGroupId = m_model->groupAt(row);
+        m_savedStates.append(state);
+    }
+}
 
+void GroupClipsCommand::undo() {
+    for (const auto& state : m_savedStates) {
+        m_model->setClipGroupId(state.row, state.oldGroupId);
+    }
+}
 
-
+void GroupClipsCommand::redo() {
+    for (int row : m_rows) {
+        m_model->setClipGroupId(row, m_newGroupId);
+    }
+}

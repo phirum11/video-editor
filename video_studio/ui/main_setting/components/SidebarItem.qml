@@ -46,7 +46,7 @@ AbstractButton {
             layer.effect: MultiEffect {
                 brightness: 1.0
                 colorization: 1.0
-                colorizationColor: sidebarItem.active ? "#ffffff" : (sidebarItem.hovered ? settingsRoot.textPrimary : settingsRoot.textMuted)
+                colorizationColor: sidebarItem.active ? Theme.text : (sidebarItem.hovered ? settingsRoot.textPrimary : settingsRoot.textMuted)
             }
         }
 

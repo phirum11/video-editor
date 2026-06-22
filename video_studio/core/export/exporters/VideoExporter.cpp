@@ -701,7 +701,8 @@ QList<VideoExporter::ClipSpec> VideoExporter::collectClips(QObject* timelineCont
         clip.trackIndex = clipMap.value(QStringLiteral("trackIndex")).toInt();
         clip.sourceIndex = row;
         clip.hasVideo = clipMap.value(QStringLiteral("hasVideo")).toBool();
-        clip.hasAudio = clipMap.value(QStringLiteral("hasAudio")).toBool();
+        bool isMuted = clipMap.value(QStringLiteral("isMuted")).toBool();
+        clip.hasAudio = clipMap.value(QStringLiteral("hasAudio")).toBool() && !isMuted;
         if (clipModel) {
             clip.effects = clipModel->clipEffectsAt(row);
         }

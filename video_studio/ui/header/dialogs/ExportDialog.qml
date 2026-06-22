@@ -138,7 +138,7 @@ Dialog {
             anchors.leftMargin: 20
             anchors.verticalCenter: parent.verticalCenter
             text: "Export"
-            color: "#eef4f6"
+            color: Theme.text
             font.pixelSize: 16
             font.weight: Font.DemiBold
         }
@@ -178,7 +178,7 @@ Dialog {
                 }
                 contentItem: Text {
                     text: editCoverBtn.text
-                    color: "#ffffff"
+                    color: Theme.text
                     font.pixelSize: 12
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
@@ -196,7 +196,7 @@ Dialog {
                 spacing: 16
                 Text {
                     text: "Export timeline"
-                    color: "#b8c2c6"
+                    color: Theme.textMuted
                     font.pixelSize: 13
                     Layout.preferredWidth: 100
                 }
@@ -212,7 +212,7 @@ Dialog {
                 spacing: 16
                 Text {
                     text: "Name"
-                    color: "#b8c2c6"
+                    color: Theme.textMuted
                     font.pixelSize: 13
                     Layout.preferredWidth: 100
                 }
@@ -221,7 +221,7 @@ Dialog {
                     text: "ExportedVideo"
                     Layout.fillWidth: true
                     placeholderText: "Enter video name"
-                    color: "#eef4f6"
+                    color: Theme.text
                     font.pixelSize: 13
                     onTextEdited: exportDialog.replaceFileNameFromName()
                     background: Rectangle {
@@ -238,7 +238,7 @@ Dialog {
                 spacing: 16
                 Text {
                     text: "Export to"
-                    color: "#b8c2c6"
+                    color: Theme.textMuted
                     font.pixelSize: 13
                     Layout.preferredWidth: 100
                 }
@@ -250,7 +250,7 @@ Dialog {
                         text: "C:/we_hunting/video_studio/export.mp4"
                         Layout.fillWidth: true
                         placeholderText: "Select export path..."
-                        color: "#eef4f6"
+                        color: Theme.text
                         font.pixelSize: 13
                         readOnly: true
                         background: Rectangle {
@@ -266,7 +266,7 @@ Dialog {
                         Layout.preferredWidth: 32
                         Layout.preferredHeight: 32
                         icon.source: "qrc:/VideoStudioUI/assets/folder.svg"
-                        icon.color: "#ffffff"
+                        icon.color: Theme.text
                         
                         background: Rectangle {
                             color: "#1a1a1a"
@@ -318,7 +318,7 @@ Dialog {
                 
                 Text {
                     text: "Video"
-                    color: "#eef4f6"
+                    color: Theme.text
                     font.pixelSize: 14
                     font.weight: Font.DemiBold
                     Layout.alignment: Qt.AlignVCenter
@@ -355,7 +355,7 @@ Dialog {
                 visible: exportDialog.isVideoExpanded
                 Text {
                     text: "Resolution"
-                    color: "#b8c2c6"
+                    color: Theme.textMuted
                     font.pixelSize: 13
                     Layout.preferredWidth: 100
                 }
@@ -371,7 +371,7 @@ Dialog {
                 visible: exportDialog.isVideoExpanded
                 Text {
                     text: "Bit rate"
-                    color: "#b8c2c6"
+                    color: Theme.textMuted
                     font.pixelSize: 13
                     Layout.preferredWidth: 100
                 }
@@ -387,7 +387,7 @@ Dialog {
                 visible: exportDialog.isVideoExpanded
                 Text {
                     text: "Codec"
-                    color: "#b8c2c6"
+                    color: Theme.textMuted
                     font.pixelSize: 13
                     Layout.preferredWidth: 100
                 }
@@ -403,7 +403,7 @@ Dialog {
                 visible: exportDialog.isVideoExpanded
                 Text {
                     text: "Format"
-                    color: "#b8c2c6"
+                    color: Theme.textMuted
                     font.pixelSize: 13
                     Layout.preferredWidth: 100
                 }
@@ -420,7 +420,7 @@ Dialog {
                 visible: exportDialog.isVideoExpanded
                 Text {
                     text: "Frame rate"
-                    color: "#b8c2c6"
+                    color: Theme.textMuted
                     font.pixelSize: 13
                     Layout.preferredWidth: 100
                 }
@@ -464,7 +464,7 @@ Dialog {
                 
                 Text {
                     text: "Audio"
-                    color: "#eef4f6"
+                    color: Theme.text
                     font.pixelSize: 14
                     font.weight: Font.DemiBold
                     Layout.alignment: Qt.AlignVCenter
@@ -501,7 +501,7 @@ Dialog {
                 visible: exportDialog.isAudioExpanded
                 Text {
                     text: "Format"
-                    color: "#b8c2c6"
+                    color: Theme.textMuted
                     font.pixelSize: 13
                     Layout.preferredWidth: 100
                 }
@@ -525,7 +525,7 @@ Dialog {
                 }
                 Text {
                     text: "Subtitle Font"
-                    color: "#eef4f6"
+                    color: Theme.text
                     font.pixelSize: 14
                     font.weight: Font.DemiBold
                     Layout.alignment: Qt.AlignVCenter
@@ -593,7 +593,7 @@ Dialog {
                             id: fontSearchInput
                             Layout.fillWidth: true
                             Layout.alignment: Qt.AlignVCenter
-                            color: "#eef4f6"
+                            color: Theme.text
                             font.pixelSize: 13
                             clip: true
                             onTextChanged: exportDialog.fontSearchText = text
@@ -649,7 +649,7 @@ Dialog {
                                 anchors.leftMargin: 8
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: fontDelegate.modelData
-                                color: fontDelegate.modelData === exportDialog.selectedSubtitleFont ? "#25e5cf" : "#cddbe2"
+                                color: fontDelegate.modelData === exportDialog.selectedSubtitleFont ? "#25e5cf" : Theme.textMuted
                                 font.pixelSize: 13
                                 font.family: fontDelegate.modelData
                                 elide: Text.ElideRight
@@ -681,7 +681,7 @@ Dialog {
                     Text {
                         anchors.centerIn: parent
                         text: "AaBbCc អ ខ គ ១២៣"
-                        color: "#eef4f6"
+                        color: Theme.text
                         font.pixelSize: 18
                         font.family: exportDialog.selectedSubtitleFont
                     }
@@ -725,7 +725,7 @@ Dialog {
                     Text {
                         text: "Duration: " + (exportDialog.timelineController ? ExportUtils.formatDuration(exportDialog.timelineController.timelineEndSeconds) : "--") + 
                               " | Size: about " + (exportDialog.timelineController ? ExportUtils.formatSize(exportDialog.timelineController.timelineEndSeconds, resolutionCombo.currentText, exportDialog.isVideoChecked) : "--")
-                        color: "#b8c2c6"
+                        color: Theme.textMuted
                         font.pixelSize: 13
                     }
                 }
@@ -789,7 +789,7 @@ Dialog {
                         }
                         contentItem: Text {
                             text: cancelBtn.text
-                            color: "#eef4f6"
+                            color: Theme.text
                             font.pixelSize: 13
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
@@ -807,7 +807,7 @@ Dialog {
                 
                 Text {
                     text: (exportDialog.currentExportProgress * 100).toFixed(1) + "%"
-                    color: "#eef4f6"
+                    color: Theme.text
                     font.pixelSize: 13
                 }
                 
@@ -819,7 +819,7 @@ Dialog {
                 
                 Text {
                     text: exportDialog.exportTimeStr
-                    color: "#b8c2c6"
+                    color: Theme.textMuted
                     font.pixelSize: 13
                 }
                 
@@ -868,7 +868,7 @@ Dialog {
                     }
                     contentItem: Text {
                         text: cancelProgressBtn.text
-                        color: "#eef4f6"
+                        color: Theme.text
                         font.pixelSize: 13
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
@@ -891,7 +891,7 @@ Dialog {
             height: 32
             contentItem: Text {
                 text: delegateItem.modelData
-                color: delegateItem.highlighted ? "#ffffff" : "#cddbe2"
+                color: delegateItem.highlighted ? Theme.text : Theme.textMuted
                 font.pixelSize: 13
                 verticalAlignment: Text.AlignVCenter
                 leftPadding: 8
@@ -916,7 +916,7 @@ Dialog {
             rightPadding: control.indicator.width + control.spacing
             text: control.displayText
             font.pixelSize: 13
-            color: "#eef4f6"
+            color: Theme.text
             verticalAlignment: Text.AlignVCenter
             elide: Text.ElideRight
         }
@@ -970,7 +970,7 @@ Dialog {
             spacing: 16
             Text {
                 text: "The timeline is empty. Please add clips to the timeline before exporting."
-                color: "#eef4f6"
+                color: Theme.text
                 font.pixelSize: 14
                 wrapMode: Text.WordWrap
                 Layout.fillWidth: true
@@ -1018,7 +1018,7 @@ Dialog {
             spacing: 16
             Text {
                 text: exportDialog.lastExportMessage.length > 0 ? exportDialog.lastExportMessage : "The export failed."
-                color: "#eef4f6"
+                color: Theme.text
                 font.pixelSize: 13
                 wrapMode: Text.WordWrap
                 maximumLineCount: 5

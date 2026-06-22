@@ -57,7 +57,7 @@ Menu {
                 
                 Text {
                     text: menuItem.text
-                    color: "#d6e0e4"
+                    color: Theme.text
                     font.pixelSize: 13
                     anchors.verticalCenter: parent.verticalCenter
                 }

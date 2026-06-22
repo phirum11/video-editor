@@ -12,16 +12,16 @@ Popup {
     modal: true
     dim: true
 
-    readonly property color panelBg: Theme.background
-    readonly property color sidebarBg: Theme.surfaceInset
-    readonly property color headerBg: Theme.background
-    readonly property color cardBg: Theme.surfaceRaised
-    readonly property color cardBorder: Qt.rgba(Theme.divider.r, Theme.divider.g, Theme.divider.b, 0.5)
-    readonly property color textPrimary: "#f0f4f8"
-    readonly property color textMuted: "#8fa2aa"
-    readonly property color accent: "#58a8d8"
-    readonly property color accentDim: "#1a4a6a"
-    readonly property color dangerRed: "#e04050"
+    property color panelBg: Theme.background
+    property color sidebarBg: Theme.surfaceInset
+    property color headerBg: Theme.background
+    property color cardBg: Theme.surfaceRaised
+    property color cardBorder: Qt.rgba(Theme.divider.r, Theme.divider.g, Theme.divider.b, 0.5)
+    property color textPrimary: Theme.text
+    property color textMuted: Theme.textMuted
+    property color accent: Theme.accent
+    property color accentDim: "#1a4a6a"
+    property color dangerRed: "#e04050"
 
     property int activeSection: 0
 
@@ -290,7 +290,14 @@ Popup {
                             SettingsComboBoxRow {
                                 label: "Color Theme"
                                 model: ["Dark (Default)", "Light", "System Default"]
-                                currentIndex: 0
+                                currentIndex: Theme.isDarkMode ? 0 : 1
+                                onCurrentIndexChanged: {
+                                    if (currentIndex === 0 || currentIndex === 2) {
+                                        Theme.isDarkMode = true;
+                                    } else if (currentIndex === 1) {
+                                        Theme.isDarkMode = false;
+                                    }
+                                }
                             }
                             SettingsColorRow {
                                 label: "Accent Color"

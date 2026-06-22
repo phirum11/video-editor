@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
+import VideoStudioUI
 
 Item {
     id: root
@@ -72,7 +73,7 @@ Item {
                 height: 8
                 radius: 4
                 color: root.selectedColor
-                border.color: "#ffffff"
+                border.color: Theme.text
                 border.width: 1
                 x: wheelArea.handleX - width / 2
                 y: wheelArea.handleY - height / 2
@@ -143,7 +144,7 @@ Item {
                     width: 10
                     height: 10
                     radius: 5
-                    color: colorSlider.pressed ? "#ffffff" : "#ddd"
+                    color: colorSlider.pressed ? Theme.text : "#ddd"
                 }
             }
             

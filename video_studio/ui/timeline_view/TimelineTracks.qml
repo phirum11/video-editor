@@ -11,10 +11,10 @@ import "../settings"
 Rectangle {
     id: tracksRoot
 
-    readonly property int trackHeaderWidth: 96
+    readonly property int trackHeaderWidth: 70
     readonly property int trackHeight: 72
     readonly property int markerHeight: 36
-    readonly property int separatorHeight: 6
+    readonly property int separatorHeight: 0
     readonly property int minClipWidth: 140
     readonly property color panelBody: Theme.background
     readonly property color panelHeader: Theme.surface
@@ -39,7 +39,7 @@ Rectangle {
     property string previewFilePath: ""
     property real timelineEndSeconds: backend.timelineEndSeconds
 
-    readonly property real contentHeight: 6 * trackHeight + separatorHeight + markerHeight
+    readonly property real contentHeight: (backend.videoTrackCount + backend.audioTrackCount) * trackHeight + separatorHeight + markerHeight
     readonly property real maxVScroll: Math.max(0, contentHeight - timelineViewport.height)
 
     readonly property real visiblePosition: scrubbing ? scrubPosition : timelinePosition
@@ -61,10 +61,10 @@ Rectangle {
     signal snapToggleRequested(bool enabled)
     signal linkedSelectionToggleRequested(bool enabled)
     signal subtitleDropped(string filePath, real startSeconds, int trackIndex)
+    signal generateAudioRequested(string language)
 
     color: panelBody
-    border.color: panelLine
-    border.width: 1
+    border.width: 0
     clip: true
 
     TimelineController {
@@ -165,7 +165,8 @@ Rectangle {
         previewRequested(name, filePath, duration, hasVideo, startOffset !== undefined ? startOffset : 0, sourceInPoint !== undefined ? sourceInPoint : 0)
     }
 
-    function addMediaClip(name, filePath, duration, hasVideo, hasAudio, startSeconds, trackIndex) {
+    function addMediaClip(name, filePath, duration, hasVideo, hasAudio, startSeconds, trackIndex, autoScroll) {
+        const doScroll = autoScroll !== undefined ? autoScroll : true
         const safeDuration = Math.max(duration, 1)
         const safeStart = startSeconds >= 0 ? startSeconds : backend.timelineEndSeconds
         const safeTrack = trackIndex >= 0 ? trackIndex : (hasVideo ? 2 : 3)
@@ -182,20 +183,22 @@ Rectangle {
             if (hasVideo || hasAudio) {
                 requestPreview(name, filePath, safeDuration, hasVideo, safeStart, 0)
             }
-            seekRequested(safeStart)
+            if (doScroll) seekRequested(safeStart)
         }
-        timelinePosition = safeStart
-        scrubPosition = safeStart
-        scrubbing = false
-        Qt.callLater(function() {
-            centerOnSeconds(safeStart + Math.min(1.0, safeDuration * 0.02))
-            keepPlayheadVisible()
-        })
+        if (doScroll) {
+            timelinePosition = safeStart
+            scrubPosition = safeStart
+            scrubbing = false
+            Qt.callLater(function() {
+                centerOnSeconds(safeStart + Math.min(1.0, safeDuration * 0.02))
+                keepPlayheadVisible()
+            })
+        }
         return selectedRow
     }
 
     function deleteSelectedClip() {
-        deleteClipAt(backend.selectedClipIndex, "")
+        deleteClipAt(backend.selectedClipIndices.length > 0 ? backend.selectedClipIndices[0] : -1, "")
     }
 
     function deleteClipAt(index, filePath) {
@@ -284,8 +287,8 @@ Rectangle {
     }
 
     function clipIndexUnderPlayhead() {
-        if (backend.selectedClipIndex >= 0 && backend.clipContains(backend.selectedClipIndex, tracksRoot.timelinePosition)) {
-            return backend.selectedClipIndex;
+        if (backend.selectedClipIndices.length > 0 && backend.clipContains(backend.selectedClipIndices[0], tracksRoot.timelinePosition)) {
+            return backend.selectedClipIndices[0];
         }
         for (let i = backend.clipCount - 1; i >= 0; i--) {
             if (backend.clipContains(i, tracksRoot.timelinePosition)) {
@@ -308,9 +311,9 @@ Rectangle {
             snapEnabled: tracksRoot.snapEnabled
             zoomValue: tracksRoot.zoomValue
             
-            property int activeClipIndex: backend.selectedClipIndex >= 0 ? backend.selectedClipIndex : tracksRoot.clipIndexUnderPlayhead()
-            
-            hasSelection: backend.selectedClipIndex >= 0 || activeClipIndex >= 0
+            property int activeClipIndex: backend.selectedClipIndices.length > 0 ? backend.selectedClipIndices[0] : tracksRoot.clipIndexUnderPlayhead()
+
+            hasSelection: backend.selectedClipIndices.length > 0 || activeClipIndex >= 0
             playheadOverSelection: activeClipIndex >= 0
             
             onToolSelected: function(tool) { tracksRoot.toolSelected(tool) }
@@ -319,6 +322,7 @@ Rectangle {
             onZoomInRequested: tracksRoot.zoomIn()
             onZoomOutRequested: tracksRoot.zoomOut()
             onZoomValueRequested: function(value) { tracksRoot.setZoom(value, 0) }
+            onGenerateAudioRequested: function(language) { tracksRoot.generateAudioRequested(language) }
             // qmllint disable unqualified
             onUndoRequested: { if (typeof ActionManager !== "undefined") ActionManager.executeAction("edit.undo") }
             onRedoRequested: { if (typeof ActionManager !== "undefined") ActionManager.executeAction("edit.redo") }
@@ -349,7 +353,7 @@ Rectangle {
                 }
             }
             onDeleteRequested: {
-                if (backend.selectedClipIndex >= 0) {
+                if (backend.selectedClipIndices.length > 0) {
                     tracksRoot.deleteSelectedClip()
                 } else if (activeClipIndex >= 0) {
                     tracksRoot.deleteClipAt(activeClipIndex, "")
@@ -374,6 +378,7 @@ Rectangle {
                 snapEnabled: tracksRoot.snapEnabled
                 linkedSelection: tracksRoot.linkedSelection
                 hasTimelineClips: backend.clipCount > 0
+                timelineController: tracksRoot.timelineController
                 panelLine: tracksRoot.panelLine
                 textPrimary: tracksRoot.textPrimary
                 accent: tracksRoot.accent
@@ -407,18 +412,17 @@ Rectangle {
                     onSeekCommitted: function(seconds) { tracksRoot.commitSeek(seconds) }
                 }
 
-                RowLayout {
+                Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    spacing: 0
 
                     TimelineCanvas {
                         id: timelineViewport
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
+                        anchors.fill: parent
                         vScrollOffset: tracksRoot.vScrollOffset
                         clipModel: backend.clipModel
-                        selectedClipIndex: backend.selectedClipIndex
+                        selectedClipIndices: backend.selectedClipIndices
+                        timelineBackend: backend
                         pixelsPerSecond: tracksRoot.pixelsPerSecond
                         scrollOffset: tracksRoot.scrollOffset
                         contentWidth: tracksRoot.contentWidth
@@ -433,10 +437,11 @@ Rectangle {
                         markers: tracksRoot.markers
                         hasClips: backend.clipCount > 0
 
-                        onSelectionCleared: backend.selectedClipIndex = -1
-                        onClipSelected: function(index) { backend.selectedClipIndex = index }
+                        onSelectionCleared: backend.selectedClipIndices = []
+                        onClipSelected: function(index) { backend.selectedClipIndices = [index] }
+                        onSelectionUpdated: function(indices) { backend.selectedClipIndices = indices }
                         onPreviewRequested: function(name, filePath, duration, hasVideo) {
-                            const clipIdx = backend.selectedClipIndex
+                            const clipIdx = backend.selectedClipIndices.length > 0 ? backend.selectedClipIndices[0] : -1
                             const clipStart = clipIdx >= 0 ? backend.clipStartSeconds(clipIdx) : 0
                             const clipData = clipIdx >= 0 ? backend.clipAt(clipIdx) : null
                             const inPoint = clipData ? (clipData.sourceInPoint || 0) : 0
@@ -460,7 +465,13 @@ Rectangle {
                             tracksRoot.setZoom(tracksRoot.zoomValue + direction * 0.08, anchorX)
                         }
                         onMediaDropped: function(name, filePath, duration, hasVideo, hasAudio, startSeconds, trackIndex) {
-                            tracksRoot.addMediaClip(name, filePath, duration, hasVideo, hasAudio, startSeconds, trackIndex)
+                            let wasEmpty = backend.clipCount === 0
+                            tracksRoot.addMediaClip(name, filePath, duration, hasVideo, hasAudio, startSeconds, trackIndex, false)
+                            if (wasEmpty) {
+                                tracksRoot.setScrollOffset(0)
+                                tracksRoot.timelinePosition = 0
+                                tracksRoot.seekRequested(0)
+                            }
                             timelineViewport.forceActiveFocus()
                         }
                         onSubtitleDropped: function(filePath, startSeconds, trackIndex) {
@@ -469,72 +480,83 @@ Rectangle {
                         }
                     }
 
-                    Rectangle {
-                        Layout.preferredWidth: 15
-                        Layout.fillHeight: true
-                        color: Theme.surfaceInset
-                        border.color: tracksRoot.panelLine
-                        border.width: 1
-
-                        Slider {
-                            id: vScrollSlider
-                            anchors.fill: parent
-                            anchors.topMargin: 4
-                            anchors.bottomMargin: 4
-                            orientation: Qt.Vertical
-                            from: 0
-                            to: Math.max(1, tracksRoot.maxVScroll)
-                            value: tracksRoot.vScrollOffset
-                            enabled: tracksRoot.maxVScroll > 0
-                            onMoved: tracksRoot.setVScrollOffset(value)
-                            background: Item {}
-                            handle: Rectangle {
-                                x: parent.width / 2 - width / 2
-                                y: vScrollSlider.topPadding + vScrollSlider.visualPosition * (vScrollSlider.availableHeight - height)
-                                width: 7
-                                height: tracksRoot.maxVScroll <= 0
-                                    ? vScrollSlider.availableHeight
-                                    : Math.max(40, vScrollSlider.availableHeight * Math.min(1, timelineViewport.height / tracksRoot.contentHeight))
-                                radius: 4
-                                color: vScrollSlider.pressed ? "#758a94" : vScrollSlider.hovered ? "#607682" : "#52656e"
-                            }
+                    Slider {
+                        id: vScrollSlider
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        anchors.topMargin: 4
+                        anchors.bottomMargin: 4
+                        width: 14
+                        visible: tracksRoot.maxVScroll > 0
+                        orientation: Qt.Vertical
+                        from: 0
+                        to: Math.max(1, tracksRoot.maxVScroll)
+                        value: tracksRoot.vScrollOffset
+                        enabled: tracksRoot.maxVScroll > 0
+                        onMoved: tracksRoot.setVScrollOffset(value)
+                        background: Item {}
+                        handle: Rectangle {
+                            anchors.right: parent.right
+                            anchors.rightMargin: 2
+                            y: vScrollSlider.topPadding + vScrollSlider.visualPosition * (vScrollSlider.availableHeight - height)
+                            width: 8
+                            height: tracksRoot.maxVScroll <= 0
+                                ? vScrollSlider.availableHeight
+                                : Math.max(40, vScrollSlider.availableHeight * Math.min(1, timelineViewport.height / tracksRoot.contentHeight))
+                            radius: 4
+                            color: vScrollSlider.pressed ? "#758a94" : vScrollSlider.hovered ? "#607682" : "#52656e"
                         }
                     }
-                }
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 17
-                    color: Theme.surfaceInset
-                    border.color: tracksRoot.panelLine
-                    border.width: 1
 
                     Slider {
                         id: scrollSlider
-                        anchors.fill: parent
-                        anchors.leftMargin: 8
-                        anchors.rightMargin: 8
+                        anchors.left: parent.left
+                        anchors.right: vScrollSlider.visible ? vScrollSlider.left : parent.right
+                        anchors.bottom: parent.bottom
+                        anchors.leftMargin: 2
+                        anchors.rightMargin: 2
+                        height: 14
+                        visible: tracksRoot.maxScroll > 0
                         from: 0
                         to: Math.max(1, tracksRoot.maxScroll)
                         value: tracksRoot.scrollOffset
                         enabled: tracksRoot.maxScroll > 0
                         onMoved: tracksRoot.setScrollOffset(value)
-
                         background: Item {}
-
                         handle: Rectangle {
                             x: scrollSlider.leftPadding + scrollSlider.visualPosition * (scrollSlider.availableWidth - width)
-                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.bottom: parent.bottom
+                            anchors.bottomMargin: 2
                             width: tracksRoot.maxScroll <= 0
                                 ? scrollSlider.availableWidth
                                 : Math.max(70, scrollSlider.availableWidth * Math.min(1, timelineViewport.width / tracksRoot.contentWidth))
-                            height: 7
+                            height: 8
                             radius: 4
                             color: scrollSlider.pressed ? "#758a94" : scrollSlider.hovered ? "#607682" : "#52656e"
                         }
                     }
                 }
             }
+        }
+    }
+
+    MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.NoButton
+        onWheel: function(wheel) {
+            if (wheel.modifiers & Qt.ControlModifier) {
+                tracksRoot.setZoom(tracksRoot.zoomValue + (wheel.angleDelta.y > 0 ? 0.05 : -0.05), wheel.x - tracksRoot.trackHeaderWidth)
+            } else if (wheel.modifiers & Qt.ShiftModifier) {
+                tracksRoot.setScrollOffset(tracksRoot.scrollOffset - wheel.angleDelta.x - wheel.angleDelta.y)
+            } else {
+                if (Math.abs(wheel.angleDelta.x) > Math.abs(wheel.angleDelta.y)) {
+                    tracksRoot.setScrollOffset(tracksRoot.scrollOffset - wheel.angleDelta.x)
+                } else {
+                    tracksRoot.setVScrollOffset(tracksRoot.vScrollOffset - wheel.angleDelta.y)
+                }
+            }
+            wheel.accepted = true
         }
     }
 

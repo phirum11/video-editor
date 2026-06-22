@@ -67,7 +67,7 @@ Dialog {
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 text: "Timeline is empty"
-                color: "#ffffff"
+                color: Theme.text
                 font.pixelSize: 18
                 font.weight: Font.DemiBold
                 horizontalAlignment: Text.AlignHCenter
@@ -96,7 +96,7 @@ Dialog {
 
                 contentItem: Text {
                     text: parent.text
-                    color: parent.hovered ? "#ffffff" : "#000000"
+                    color: parent.hovered ? Theme.text : "#000000"
                     font.pixelSize: 14
                     font.weight: Font.DemiBold
                     horizontalAlignment: Text.AlignHCenter

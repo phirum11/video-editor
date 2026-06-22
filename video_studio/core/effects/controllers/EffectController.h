@@ -7,6 +7,7 @@
 #include "core/effects/models/BlurEffect.h"
 #include "core/effects/models/StylizeEffect.h"
 #include "core/effects/models/AudioEffect.h"
+#include "core/effects/models/ChromaKeyEffect.h"
 
 #include "ui/timeline_view/controllers/TimelineController.h"
 #include "core/timeline/models/TimelineClipModel.h"
@@ -24,6 +25,7 @@ class EffectController : public QObject
     Q_PROPERTY(BlurEffect* blur READ blur CONSTANT)
     Q_PROPERTY(StylizeEffect* stylize READ stylize CONSTANT)
     Q_PROPERTY(AudioEffect* audio READ audio CONSTANT)
+    Q_PROPERTY(ChromaKeyEffect* chromaKey READ chromaKey CONSTANT)
     
     Q_PROPERTY(TimelineController* timelineController READ timelineController WRITE setTimelineController NOTIFY timelineControllerChanged)
 
@@ -36,6 +38,7 @@ public:
     BlurEffect* blur() const { return m_blur; }
     StylizeEffect* stylize() const { return m_stylize; }
     AudioEffect* audio() const { return m_audio; }
+    ChromaKeyEffect* chromaKey() const { return m_chromaKey; }
 
     TimelineController* timelineController() const { return m_timelineController; }
     void setTimelineController(TimelineController* controller);
@@ -63,6 +66,7 @@ private:
     BlurEffect* m_blur;
     StylizeEffect* m_stylize;
     AudioEffect* m_audio;
+    ChromaKeyEffect* m_chromaKey;
 
     TimelineController* m_timelineController = nullptr;
     TimelineClipModel* m_clipModel = nullptr;
