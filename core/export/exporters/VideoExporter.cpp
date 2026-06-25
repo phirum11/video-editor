@@ -87,6 +87,20 @@ QString gaussianBlurFilter(double radius)
     return QStringLiteral("gblur=sigma=%1:steps=2").arg(number(sigma));
 }
 
+bool hasVisibleColorAdjustment(const ClipEffects& effects)
+{
+    return std::abs(effects.color.brightness) > 0.0001
+        || std::abs(effects.color.contrast - 100.0) > 0.0001
+        || std::abs(effects.color.saturation - 100.0) > 0.0001;
+}
+
+QString ffmpegEnableBetween(double startSeconds, double endSeconds)
+{
+    return QStringLiteral("enable='between(t\\,%1\\,%2)'")
+        .arg(expressionNumber(startSeconds))
+        .arg(expressionNumber(endSeconds));
+}
+
 QString appendBlurFilters(QStringList& filters,
                           const QString& inputLabel,
                           const ClipEffects& effects,
@@ -419,7 +433,7 @@ void VideoExporter::exportNextChunk()
         qDebug() << "[SUBTITLE-DEBUG] Total clips:" << m_currentClips.size()
                  << "chunkStart:" << chunkStart << "chunkEnd:" << chunkEnd;
         for (const ClipSpec& clip : m_currentClips) {
-            if (!clip.hasVideo && !clip.hasAudio && !clip.name.isEmpty()) {
+            if (!clip.isEffect && !clip.hasVideo && !clip.hasAudio && !clip.name.isEmpty()) {
                 if (clip.startSeconds < chunkEnd && clip.startSeconds + clip.durationSeconds > chunkStart) {
                     AdvancedSubtitleRenderer::SubtitleItem sub;
                     sub.text = clip.name;
@@ -700,8 +714,23 @@ QList<VideoExporter::ClipSpec> VideoExporter::collectClips(QObject* timelineCont
         clip.durationSeconds = clipMap.value(QStringLiteral("durationSeconds")).toDouble();
         clip.trackIndex = clipMap.value(QStringLiteral("trackIndex")).toInt();
         clip.sourceIndex = row;
-        clip.hasVideo = clipMap.value(QStringLiteral("hasVideo")).toBool();
-        clip.hasAudio = clipMap.value(QStringLiteral("hasAudio")).toBool();
+        clip.isEffect = clipMap.value(QStringLiteral("isEffect")).toBool();
+
+        bool isAudioTrack = clip.trackIndex >= 100;
+        int logicalTrackIdx = isAudioTrack ? clip.trackIndex - 100 : clip.trackIndex;
+
+        clip.hasVideo = clipMap.value(QStringLiteral("hasVideo")).toBool() && !clip.isEffect;
+        bool isMuted = clipMap.value(QStringLiteral("isMuted")).toBool();
+
+        if (!isAudioTrack && timeline->isTrackHidden(true, logicalTrackIdx)) {
+            clip.hasVideo = false;
+        }
+
+        if (timeline->isTrackMuted(!isAudioTrack, logicalTrackIdx)) {
+            isMuted = true;
+        }
+
+        clip.hasAudio = clipMap.value(QStringLiteral("hasAudio")).toBool() && !isMuted && !clip.isEffect;
         if (clipModel) {
             clip.effects = clipModel->clipEffectsAt(row);
         }
@@ -709,7 +738,7 @@ QList<VideoExporter::ClipSpec> VideoExporter::collectClips(QObject* timelineCont
         if (!isFinitePositive(clip.durationSeconds)) {
             continue;
         }
-        if (clip.filePath.isEmpty() || !QFileInfo::exists(clip.filePath)) {
+        if (!clip.isEffect && (clip.filePath.isEmpty() || !QFileInfo::exists(clip.filePath))) {
             if (errorMessage) {
                 *errorMessage = QStringLiteral("Missing source media: %1").arg(clip.filePath);
             }
@@ -736,11 +765,14 @@ QStringList VideoExporter::buildFfmpegArguments(const QList<ClipSpec>& clips,
 
     QList<ClipSpec> videoClips;
     QList<ClipSpec> audioClips;
+    QList<ClipSpec> effectClips;
     for (const ClipSpec& clip : clips) {
         if (clip.startSeconds >= chunkEnd || clip.startSeconds + clip.durationSeconds <= chunkStart) {
             continue;
         }
-        if (settings.exportVideo && clip.hasVideo) {
+        if (settings.exportVideo && clip.isEffect) {
+            effectClips.push_back(clip);
+        } else if (settings.exportVideo && clip.hasVideo) {
             videoClips.push_back(clip);
         }
         if (settings.exportAudio && clip.hasAudio) {
@@ -749,6 +781,16 @@ QStringList VideoExporter::buildFfmpegArguments(const QList<ClipSpec>& clips,
     }
 
     std::sort(videoClips.begin(), videoClips.end(), [](const ClipSpec& left, const ClipSpec& right) {
+        if (left.trackIndex != right.trackIndex) {
+            return left.trackIndex > right.trackIndex;
+        }
+        if (!qFuzzyCompare(left.startSeconds, right.startSeconds)) {
+            return left.startSeconds < right.startSeconds;
+        }
+        return left.sourceIndex < right.sourceIndex;
+    });
+
+    std::sort(effectClips.begin(), effectClips.end(), [](const ClipSpec& left, const ClipSpec& right) {
         if (left.trackIndex != right.trackIndex) {
             return left.trackIndex > right.trackIndex;
         }
@@ -949,6 +991,46 @@ QStringList VideoExporter::buildFfmpegArguments(const QList<ClipSpec>& clips,
             previous = output;
             ++overlayIndex;
         }
+
+        int timelineEffectIndex = 0;
+        for (const ClipSpec& effectClip : effectClips) {
+            const double overlapStartTimeline = std::max(chunkStart, effectClip.startSeconds);
+            const double overlapEndTimeline = std::min(chunkEnd, effectClip.startSeconds + effectClip.durationSeconds);
+            if (overlapEndTimeline <= overlapStartTimeline) {
+                continue;
+            }
+
+            const double enableStart = overlapStartTimeline - chunkStart;
+            const double enableEnd = overlapEndTimeline - chunkStart;
+            const QString enable = ffmpegEnableBetween(enableStart, enableEnd);
+
+            if (hasVisibleColorAdjustment(effectClip.effects)) {
+                const QString output = QStringLiteral("timeline_fx%1_color").arg(timelineEffectIndex++);
+                const double brightness = std::clamp(effectClip.effects.color.brightness / 100.0, -1.0, 1.0);
+                const double contrast = std::max(0.0, effectClip.effects.color.contrast / 100.0);
+                const double saturation = std::max(0.0, effectClip.effects.color.saturation / 100.0);
+                filters << QStringLiteral("[%1]eq=brightness=%2:contrast=%3:saturation=%4:%5[%6]")
+                               .arg(previous,
+                                    expressionNumber(brightness),
+                                    expressionNumber(contrast),
+                                    expressionNumber(saturation),
+                                    enable,
+                                    output);
+                previous = output;
+            }
+
+            const BlurEffectData blur = normalizedBlur(effectClip.effects.blur);
+            if (blur.radius > 0.0) {
+                const QString output = QStringLiteral("timeline_fx%1_blur").arg(timelineEffectIndex++);
+                filters << QStringLiteral("[%1]%2:%3[%4]")
+                               .arg(previous,
+                                    gaussianBlurFilter(blur.radius),
+                                    enable,
+                                    output);
+                previous = output;
+            }
+        }
+
         filters << QStringLiteral("[%1]trim=duration=%2,setpts=PTS-STARTPTS,format=yuv420p[vout]")
                        .arg(previous)
                        .arg(number(chunkDuration));
@@ -1033,9 +1115,8 @@ QStringList VideoExporter::buildFfmpegArguments(const QList<ClipSpec>& clips,
     if (settings.exportVideo && (settings.containerFormat == QLatin1String("MP4") || settings.containerFormat == QLatin1String("MOV"))) {
         args << QStringLiteral("-movflags") << QStringLiteral("+faststart");
     }
-    args << QStringLiteral("-t") << number(chunkDuration)
+    args << QStringLiteral("-t") << number(chunkDuration)       
          << QStringLiteral("-f") << plan.muxer
          << outputPath;
     return args;
 }
-

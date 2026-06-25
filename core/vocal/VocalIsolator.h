@@ -3,6 +3,9 @@
 #include <QProcess>
 #include <QString>
 #include <QMap>
+#include <QFutureWatcher>
+#include <QFuture>
+
 class VocalIsolator : public QObject {
     Q_OBJECT
 public:
@@ -15,19 +18,16 @@ signals:
     void isolationFinished(int clipIndex, int isolationType, const QString& resultFilePath, bool success);
 
 private slots:
-    void onProcessReadyReadStandardError(int clipIndex);
-    void onProcessFinished(int clipIndex, int exitCode, QProcess::ExitStatus exitStatus);
-    void onProcessErrorOccurred(int clipIndex, QProcess::ProcessError error);
+    void onProcessFinished(int clipIndex);
 private:
     struct ProcessData {
-        QProcess* process;
+        QFutureWatcher<bool>* watcher;
         QString sourceFilePath;
         int isolationType;
         QString outputDir;
         QString tempFilePath;
         QString tempWorkDir;
         QString cacheKey;
-        QString stderrBuffer;
     };
     QMap<int, ProcessData> m_processes;
 };

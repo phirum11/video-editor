@@ -8,12 +8,12 @@ import VideoStudioUI
 Rectangle {
     id: aiAssistRoot
 
-    readonly property color panelTop: Theme.surface
-    readonly property color panelBody: Theme.background
-    readonly property color panelLine: Theme.dividerSoft
-    readonly property color textPrimary: "#dce4e7"
-    readonly property color textMuted: "#aeb9be"
-    readonly property color accent: "#66aacf"
+    property color panelTop: Theme.surface
+    property color panelBody: Theme.background
+    property color panelLine: Theme.dividerSoft
+    property color textPrimary: Theme.text
+    property color textMuted: Theme.textMuted
+    property color accent: Theme.accent
 
     color: panelBody
     clip: true
@@ -83,7 +83,7 @@ Rectangle {
                     anchors.bottom: parent.bottom
                     placeholderText: qsTr("Search AI tools")
                     color: aiAssistRoot.textPrimary
-                    placeholderTextColor: "#6f8188"
+                    placeholderTextColor: Theme.textMuted
                     font.pixelSize: 13
                     selectByMouse: true
                     background: Item {}
@@ -157,7 +157,7 @@ Rectangle {
                             Text {
                                 Layout.fillWidth: true
                                 text: aiToolButton.title
-                                color: aiToolButton.hovered ? "#ffffff" : aiAssistRoot.textPrimary
+                                color: aiToolButton.hovered ? Theme.text : aiAssistRoot.textPrimary
                                 font.pixelSize: 13
                                 font.weight: Font.DemiBold
                                 elide: Text.ElideRight

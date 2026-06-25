@@ -8,6 +8,9 @@
 #include <QDebug>
 
 #include <iostream>
+extern "C" {
+#include <libavutil/log.h>
+}
 #include "core/utils/MediaImageProvider.h"
 #include "core/media/providers/AudioWaveformProvider.h"
 #include "core/actions/managers/ActionManager.h"
@@ -19,10 +22,14 @@
 #include "core/actions/handlers/ViewActions.h"
 #include "core/actions/handlers/ToolActions.h"
 #include "core/actions/handlers/HelpActions.h"
+#include "core/effect_hub/models/EffectHubModel.h"
 #include <QQmlContext>
 
 int main(int argc, char *argv[])
 {
+    // Suppress FFmpeg info/warning logs (like MP3 duration warnings)
+    av_log_set_level(AV_LOG_ERROR);
+
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 #endif
@@ -49,6 +56,9 @@ int main(int argc, char *argv[])
     // Expose to QML
     engine.rootContext()->setContextProperty("ActionManager", &ActionManager::instance());
     engine.rootContext()->setContextProperty("MenuManager", &MenuManager::instance());
+
+    // Register Types
+    qmlRegisterType<EffectHubModel>("VideoStudio.Models", 1, 0, "EffectHubModel");
 
     // Build the menu structure now that all actions are registered
     MenuManager::instance().buildDefaultMenu();

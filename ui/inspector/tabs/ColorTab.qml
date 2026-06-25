@@ -9,8 +9,13 @@ pragma ComponentBehavior: Bound
 
 ScrollView {
     id: rootScrollView
+    property var effectController: null
     clip: true
     contentWidth: availableWidth
+    ScrollBar.vertical: ScrollBar {
+        policy: ScrollBar.AsNeeded
+        width: 12
+    }
     ColumnLayout {
         width: rootScrollView.availableWidth
         spacing: 2
@@ -71,7 +76,7 @@ ScrollView {
                     color: Theme.surfaceRaised
                     border.color: Theme.divider
                     radius: 2
-                    Text { anchors.centerIn: parent; text: "🖌"; color: "#dce4e7"; font.pixelSize: 12 }
+                    Text { anchors.centerIn: parent; text: "🖌"; color: Theme.text; font.pixelSize: 12 }
                 }
                 Item { Layout.fillWidth: true }
             }

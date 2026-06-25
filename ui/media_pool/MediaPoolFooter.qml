@@ -11,9 +11,9 @@ Rectangle {
     property string viewMode: "grid"
     property real zoomValue: 0.5
     property color panelLine: Theme.divider
-    property color textPrimary: "#dce4e7"
-    property color textMuted: "#aeb9be"
-    property color accent: "#66aacf"
+    property color textPrimary: Theme.text
+    property color textMuted: Theme.textMuted
+    property color accent: Theme.accent
 
     signal viewModeRequested(string mode)
     signal zoomValueRequested(real value)
@@ -76,7 +76,7 @@ Rectangle {
                 Rectangle {
                     width: zoomSlider.visualPosition * parent.width
                     height: parent.height
-                    color: "#89979d"
+                    color: Theme.textMuted
                     radius: 1
                 }
             }
@@ -87,7 +87,7 @@ Rectangle {
                 implicitWidth: 12
                 implicitHeight: 12
                 radius: 6
-                color: zoomSlider.pressed ? "#ffffff" : footerRoot.textPrimary
+                color: zoomSlider.pressed ? Theme.text : footerRoot.textPrimary
             }
         }
 
@@ -151,6 +151,8 @@ Rectangle {
         implicitHeight: 24
         hoverEnabled: true
 
+        HoverHandler { cursorShape: Qt.PointingHandCursor }
+
         ToolTip.visible: hovered && toolTipText !== ""
         ToolTip.text: toolTipText
 
@@ -207,7 +209,7 @@ Rectangle {
             Text {
                 Layout.fillWidth: true
                 text: settingsToggle.label
-                color: "#d6e0e4"
+                color: Theme.text
                 font.pixelSize: 13
             }
         }
@@ -216,6 +218,7 @@ Rectangle {
             id: toggleMouse
             anchors.fill: parent
             hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
             onClicked: settingsToggle.checked = !settingsToggle.checked
         }
     }
@@ -234,7 +237,7 @@ Rectangle {
             anchors.left: parent.left
             anchors.leftMargin: 34
             text: settingsAction.label
-            color: "#d6e0e4"
+            color: Theme.text
             font.pixelSize: 13
         }
 
@@ -242,6 +245,7 @@ Rectangle {
             id: actionMouse
             anchors.fill: parent
             hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
         }
     }
 }

@@ -3,6 +3,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
+import VideoStudioUI
 
 Rectangle {
     id: root
@@ -54,7 +55,7 @@ Rectangle {
                 }
                 contentItem: Text {
                     text: eqCheck.text
-                    color: "#eef4f6"
+                    color: Theme.text
                     font.pixelSize: 14
                     font.weight: Font.Medium
                     verticalAlignment: Text.AlignVCenter
@@ -237,7 +238,7 @@ Rectangle {
                                     
                                     Text {
                                         text: Math.round(bandSlider.value) + " dB"
-                                        color: "#eef4f6"
+                                        color: Theme.text
                                         font.pixelSize: 11
                                         Layout.alignment: Qt.AlignHCenter
                                     }

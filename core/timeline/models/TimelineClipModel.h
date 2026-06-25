@@ -11,6 +11,7 @@ struct TimelineClip
     QString clipName;
     QString filePath;
     QString linkGroupId;
+    QString groupId;
     QString originalFilePath;
     int vocalIsolationType = 0;
     int isolationProgress = -1;
@@ -21,6 +22,8 @@ struct TimelineClip
     int trackIndex = 2;
     bool hasVideo = true;
     bool hasAudio = false;
+    bool isEffect = false;
+    bool isMuted = false;
     ClipEffects effects;
 };
 
@@ -42,7 +45,10 @@ public:
         SourceDurationRole,
         OriginalFilePathRole,
         VocalIsolationTypeRole,
-        IsolationProgressRole
+        IsolationProgressRole,
+        IsMutedRole,
+        GroupRole,
+        IsEffectRole
     };
 
     explicit TimelineClipModel(QObject* parent = nullptr);
@@ -58,6 +64,7 @@ public:
     void clear();
     void updateClipAudioSource(int row, const QString& newPath, const QString& originalPath, int isolationType);
     void updateClipIsolationProgress(int row, int progress);
+    void setClipMuted(int row, bool muted);
 
     ClipEffects clipEffectsAt(int row) const;
     void updateClipEffects(int row, const ClipEffects& effects);
@@ -66,7 +73,10 @@ public:
     QVariantMap clipMapAt(int row) const;
     TimelineClip clipAt(int row) const;
     QString linkGroupAt(int row) const;
+    QString groupAt(int row) const;
     QVector<int> getLinkedRows(const QString& linkGroupId) const;
+    QVector<int> getGroupedRows(const QString& groupId) const;
+    void setClipGroupId(int row, const QString& groupId);
     bool updateClip(int row, const TimelineClip& clip);
 
     int rowCount(const QModelIndex& parent = QModelIndex()) const override;

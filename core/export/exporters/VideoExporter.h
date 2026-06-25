@@ -60,6 +60,7 @@ private:
         int sourceIndex = 0;
         bool hasVideo = false;
         bool hasAudio = false;
+        bool isEffect = false;
         ClipEffects effects;
     };
 

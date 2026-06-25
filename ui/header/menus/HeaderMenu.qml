@@ -12,9 +12,11 @@ Rectangle {
     property var timelineController: null
     property var subtitleController: null
     signal openSettings()
-    readonly property color textPrimary: "#eef4f6"
-    readonly property color textMuted: "#b8c2c6"
-    readonly property color accent: "#5fa8cf"
+    signal saveProjectRequested()
+    signal openProjectRequested()
+    property color textPrimary: Theme.text
+    property color textMuted: Theme.textMuted
+    property color accent: Theme.accent
 
     implicitHeight: 38
     color: Theme.background
@@ -120,12 +122,14 @@ Rectangle {
                     Layout.alignment: Qt.AlignVCenter
                     hoverEnabled: true
 
+                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+
                     contentItem: RowLayout {
                         spacing: 1
                         anchors.centerIn: parent
                         Text {
                             text: "Menu"
-                            color: menuBtn.highlighted || menuBtn.hovered || mainMenu.opened ? headerRoot.textPrimary : headerRoot.textMuted
+                            color: menuBtn.hovered || mainMenu.opened ? headerRoot.textPrimary : headerRoot.textMuted
                             font.pixelSize: 14
                         }
                         Image {
@@ -133,7 +137,7 @@ Rectangle {
                             Layout.preferredWidth: 12
                             Layout.preferredHeight: 12
                             source: mainMenu.opened ? "qrc:/VideoStudioUI/assets/chevron-up.svg" : "qrc:/VideoStudioUI/assets/chevron-down.svg"
-                            opacity: menuBtn.highlighted || menuBtn.hovered || mainMenu.opened ? 1.0 : 0.7
+                            opacity: menuBtn.hovered || mainMenu.opened ? 1.0 : 0.7
                         }
                     }
                     
@@ -162,10 +166,19 @@ Rectangle {
                         Component {
                             id: actionComp
                             AppMenuItem {
-                                property string actionId
+                                id: compItem
+                                property string customActionId
+                                // qmllint disable unqualified
                                 onTriggered: {
-                                    if (typeof ActionManager !== "undefined") ActionManager.executeAction(actionId)
+                                    if (compItem.customActionId === "file.save") {
+                                        headerRoot.saveProjectRequested()
+                                    } else if (compItem.customActionId === "file.open") {
+                                        headerRoot.openProjectRequested()
+                                    } else if (typeof ActionManager !== "undefined") {
+                                        ActionManager.executeAction(compItem.customActionId)
+                                    }
                                 }
+                                // qmllint enable unqualified
                             }
                         }
 
@@ -179,13 +192,13 @@ Rectangle {
                                 for (let i = 0; i < menuData.items.length; ++i) {
                                     let itemData = menuData.items[i];
                                     if (itemData.type === "separator") {
-                                        let sep = Qt.createQmlObject('import QtQuick; import QtQuick.Controls; import VideoStudioUI; MenuSeparator { contentItem: Rectangle { implicitHeight: 1; color: Theme.divider } }', parentMenu);
+                                        let sep = Qt.createQmlObject('import QtQuick; import QtQuick.Controls; import VideoStudioUI; MenuSeparator { contentItem: Rectangle { implicitHeight: 1; color: Theme.divider } }', parentMenu.contentItem);
                                         parentMenu.addItem(sep);
                                     } else if (itemData.type === "action") {
-                                        let action = actionComp.createObject(null, {text: itemData.text, shortcutText: itemData.shortcut, actionId: itemData.actionId});
+                                        let action = actionComp.createObject(parentMenu.contentItem, {text: itemData.text, shortcutText: itemData.shortcut, customActionId: itemData.actionId});
                                         parentMenu.addItem(action);
                                     } else if (itemData.type === "submenu") {
-                                        let subMenu = subMenuComp.createObject(null, {title: itemData.title});
+                                        let subMenu = subMenuComp.createObject(parentMenu, {title: itemData.title});
                                         buildMenu(itemData, subMenu);
                                         parentMenu.addMenu(subMenu);
                                     }
@@ -196,7 +209,7 @@ Rectangle {
                                 let structure = MenuManager.menuStructure;
                                 for (let i = 0; i < structure.length; ++i) {
                                     let menuData = structure[i];
-                                    let topMenu = subMenuComp.createObject(null, {title: menuData.title});
+                                    let topMenu = subMenuComp.createObject(mainMenu, {title: menuData.title});
                                     buildMenu(menuData, topMenu);
                                     mainMenu.addMenu(topMenu);
                                 }
@@ -251,6 +264,45 @@ Rectangle {
                 }
             }
 
+            // 3.3 AI Voice Progress
+            RowLayout {
+                Layout.rightMargin: 16
+                visible: headerRoot.timelineController && headerRoot.timelineController.isGeneratingAIVoice
+                spacing: 8
+
+                Text {
+                    text: "Generating Voice..."
+                    color: headerRoot.textMuted
+                    font.pixelSize: 12
+                }
+
+                Rectangle {
+                    Layout.preferredWidth: 100
+                    Layout.preferredHeight: 6
+                    Layout.alignment: Qt.AlignVCenter
+                    color: Theme.surfaceInset
+                    radius: 3
+
+                    Rectangle {
+                        height: parent.height
+                        width: parent.width * (headerRoot.timelineController ? headerRoot.timelineController.activeAIVoiceProgress / 100.0 : 0)
+                        color: "#ff66cc" // a different color to distinguish
+                        radius: 3 
+                        Behavior on width {
+                            NumberAnimation { duration: 150; easing.type: Easing.OutQuad }
+                        }
+                    }
+                }
+
+                Text {
+                    text: (headerRoot.timelineController ? headerRoot.timelineController.activeAIVoiceProgress : 0) + "%"
+                    color: headerRoot.textPrimary
+                    font.pixelSize: 12
+                    font.family: "monospace"
+                    Layout.preferredWidth: 30
+                }
+            }
+
             // 3.5 Export Button
             AbstractButton {
                 id: headerExportBtn
@@ -260,6 +312,8 @@ Rectangle {
                 Layout.alignment: Qt.AlignVCenter
                 Layout.rightMargin: 12
                 hoverEnabled: true
+
+                HoverHandler { cursorShape: Qt.PointingHandCursor }
 
                 contentItem: Text {
                     text: headerExportBtn.text
@@ -285,6 +339,8 @@ Rectangle {
                 Layout.preferredHeight: 28
                 Layout.alignment: Qt.AlignVCenter
                 hoverEnabled: true
+
+                HoverHandler { cursorShape: Qt.PointingHandCursor }
 
                 ToolTip.visible: hovered
                 ToolTip.text: "Settings"
@@ -391,7 +447,7 @@ Rectangle {
                 anchors.leftMargin: 20
                 anchors.verticalCenter: parent.verticalCenter
                 text: menuItem.text
-                color: menuItem.highlighted ? "#ffffff" : "#cddbe2"
+                color: menuItem.highlighted ? Theme.text : Theme.textMuted
                 font.pixelSize: 13
             }
             Text {
@@ -409,7 +465,7 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             visible: menuItem.subMenu
             text: ">"
-            color: menuItem.highlighted ? "#ffffff" : "#89979d"
+            color: menuItem.highlighted ? Theme.text : "#89979d"
             font.pixelSize: 12
             font.family: "monospace"
         }
@@ -420,6 +476,8 @@ Rectangle {
         implicitWidth: chipLabel.implicitWidth + 24
         implicitHeight: 26
         hoverEnabled: true
+
+        HoverHandler { cursorShape: Qt.PointingHandCursor }
 
         background: Rectangle {
             radius: 3
@@ -446,6 +504,8 @@ Rectangle {
         implicitWidth: iconRow.implicitWidth + 14
         implicitHeight: 28
         hoverEnabled: true
+
+        HoverHandler { cursorShape: Qt.PointingHandCursor }
 
         background: Rectangle {
             radius: 3
@@ -484,6 +544,8 @@ Rectangle {
         implicitHeight: 29
         hoverEnabled: true
 
+        HoverHandler { cursorShape: Qt.PointingHandCursor }
+
         background: Rectangle {
             color: windowButton.danger && windowButton.hovered ? "#e81123" :
                    windowButton.danger && windowButton.pressed ? "#f1707a" :
@@ -497,7 +559,7 @@ Rectangle {
                 visible: windowButton.mode === "minimize"
                 width: 10
                 height: 1
-                color: windowButton.hovered && windowButton.danger ? "#ffffff" : headerRoot.textMuted
+                color: windowButton.hovered && windowButton.danger ? Theme.text : headerRoot.textMuted
                 anchors.centerIn: parent
                 anchors.verticalCenterOffset: 0
             }
@@ -508,7 +570,7 @@ Rectangle {
                 width: 10
                 height: 10
                 color: "transparent"
-                border.color: windowButton.hovered && windowButton.danger ? "#ffffff" : headerRoot.textMuted
+                border.color: windowButton.hovered && windowButton.danger ? Theme.text : headerRoot.textMuted
                 border.width: 1
                 anchors.centerIn: parent
             }
@@ -523,7 +585,7 @@ Rectangle {
                 Rectangle {
                     width: Math.sqrt(200) // diagonal of 10x10
                     height: 1
-                    color: windowButton.hovered ? "#ffffff" : headerRoot.textMuted
+                    color: windowButton.hovered ? Theme.text : headerRoot.textMuted
                     anchors.centerIn: parent
                     rotation: 45
                     antialiasing: true
@@ -531,7 +593,7 @@ Rectangle {
                 Rectangle {
                     width: Math.sqrt(200)
                     height: 1
-                    color: windowButton.hovered ? "#ffffff" : headerRoot.textMuted
+                    color: windowButton.hovered ? Theme.text : headerRoot.textMuted
                     anchors.centerIn: parent
                     rotation: -45
                     antialiasing: true

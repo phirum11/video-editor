@@ -9,7 +9,7 @@
 SubtitleController::SubtitleController(QObject* parent)
     : QObject(parent)
 {
-    m_font = QFont("Khmer UI", 48, QFont::Bold);
+    m_font = QFont("Khmer UI", 12, QFont::Bold);
     m_color = QColor(Qt::white);
     m_verticalPosition = -1.0;
 }
