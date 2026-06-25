@@ -519,7 +519,7 @@ void PlaybackEngine::clear()
 
 void PlaybackEngine::play()
 {
-    if (m_filePath.isEmpty() || (!m_hasVideo && !m_hasAudio)) {
+    if ((m_filePath.isEmpty() || (!m_hasVideo && !m_hasAudio)) && m_sequenceDuration <= 0.0) {
         return;
     }
 

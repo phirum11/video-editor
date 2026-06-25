@@ -81,7 +81,7 @@ Rectangle {
         playback.clear()
         if (auxAudioRepeater) {
             for (let i = 0; i < auxAudioRepeater.count; ++i) {
-                let engine = auxAudioRepeater.itemAt(i);
+                let engine = auxAudioRepeater.itemAt(i) as PlaybackEngine;
                 if (engine) engine.clear();
             }
         }
@@ -91,7 +91,7 @@ Rectangle {
         playback.pause()
         if (auxAudioRepeater) {
             for (let i = 0; i < auxAudioRepeater.count; ++i) {
-                let engine = auxAudioRepeater.itemAt(i);
+                let engine = auxAudioRepeater.itemAt(i) as PlaybackEngine;
                 if (engine) engine.pause();
             }
         }
@@ -101,7 +101,7 @@ Rectangle {
         playback.seek(seconds)
         if (auxAudioRepeater) {
             for (let i = 0; i < auxAudioRepeater.count; ++i) {
-                let engine = auxAudioRepeater.itemAt(i);
+                let engine = auxAudioRepeater.itemAt(i) as PlaybackEngine;
                 if (engine) engine.seek(seconds);
             }
         }
@@ -195,7 +195,7 @@ Rectangle {
 
         for (let j = 0; j < auxAudioRepeater.count; ++j) {
             let row = j < currentAudioRows.length ? currentAudioRows[j] : -1;
-            let engine = auxAudioRepeater.itemAt(j);
+            let engine = auxAudioRepeater.itemAt(j) as PlaybackEngine;
             if (!engine) continue;
 
             if (row >= 0 && row !== newAuxRows[j]) {
@@ -226,7 +226,7 @@ Rectangle {
         target: playback
         function onPlayingChanged() {
             for (let i = 0; i < auxAudioRepeater.count; ++i) {
-                let engine = auxAudioRepeater.itemAt(i);
+                let engine = auxAudioRepeater.itemAt(i) as PlaybackEngine;
                 if (!engine) continue;
                 if (playback.playing) {
                     engine.play();
@@ -261,7 +261,7 @@ Rectangle {
                 }
             }
             for (let i = 0; i < auxAudioRepeater.count; ++i) {
-                let engine = auxAudioRepeater.itemAt(i);
+                let engine = auxAudioRepeater.itemAt(i) as PlaybackEngine;
                 let row = previewRoot.currentlyLoadedAuxRows[i];
                 if (engine && row >= 0 && row < previewRoot.timelineCtrl.clipCount) {
                     let clipData = previewRoot.timelineCtrl.clipAt(row);
@@ -473,7 +473,7 @@ Rectangle {
                     iconSource: previewRoot.isPlaying ? "qrc:/VideoStudioUI/assets/pause.svg" : "qrc:/VideoStudioUI/assets/play.svg"
                     toolTipText: previewRoot.isPlaying ? "Pause" : "Play"
                     primary: true
-                    enabled: previewRoot.hasClip && (previewRoot.hasVideo || previewRoot.hasAudio)
+                    enabled: (previewRoot.hasClip && (previewRoot.hasVideo || previewRoot.hasAudio)) || (previewRoot.timelineCtrl && previewRoot.timelineCtrl.clipCount > 0)
                     onClicked: playback.togglePlayback()
                 }
 

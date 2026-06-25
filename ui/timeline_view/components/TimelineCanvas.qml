@@ -258,6 +258,7 @@ Rectangle {
         model: canvasRoot.timelineBackend ? canvasRoot.timelineBackend.audioTrackCount : 3
 
         Rectangle {
+            id: trackRect
             required property int index
 
             y: canvasRoot.trackY(100 + index)
@@ -272,7 +273,7 @@ Rectangle {
                 anchors.topMargin: 4
                 anchors.bottomMargin: 4
                 color: "#181A20" // Box-background for all audio tracks
-                visible: canvasRoot.timelineBackend && !canvasRoot.timelineBackend.isTrackEmpty(false, index)
+                visible: canvasRoot.timelineBackend && !canvasRoot.timelineBackend.isTrackEmpty(false, trackRect.index)
                 radius: 4
             }
 
@@ -500,6 +501,7 @@ Rectangle {
             canvasRoot.activeSnapLineSeconds = -1;
         }
 
+        // qmllint disable missing-property
         onDropped: function (drop) {
             let mediaList = [];
             if (drop.source && drop.source["effectTitle"]) {

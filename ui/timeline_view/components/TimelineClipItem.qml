@@ -365,6 +365,7 @@ Rectangle {
         dragThreshold: 3
         cursorShape: Qt.PointingHandCursor
         enabled: !clipRoot.isTrackLocked && !(leftTrimMouse.containsMouse || leftTrimMouse.pressed || rightTrimMouse.containsMouse || rightTrimMouse.pressed)
+        // qmllint disable missing-property
         onActiveChanged: {
             if (active) {
                 clipMouse.originalStart = clipRoot.startSeconds;

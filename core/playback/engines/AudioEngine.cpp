@@ -75,8 +75,9 @@ bool AudioEngine::start(int sampleRate, int channelCount)
     // Optimization: Reuse existing sink if format hasn't changed.
     // This avoids WASAPI thread exhaustion from rapidly destroying and recreating the sink.
     if (m_sink && m_format == requestedFormat) {
-        m_sink->reset();
-        m_device = m_sink->start();
+        // Do not use reset() or stop() as it causes AUDCLNT_E_NOT_STOPPED on WASAPI
+        // when start() is called immediately after. Just suspend and reuse the device.
+        m_sink->suspend();
         return m_device != nullptr;
     }
 
