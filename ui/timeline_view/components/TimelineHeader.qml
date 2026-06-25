@@ -9,11 +9,12 @@ Rectangle {
     id: headerRoot
 
     property color panelLine: Theme.divider
-    property color textPrimary: "#d6e0e4"
-    property color textMuted: "#7f939c"
+    property color textPrimary: Theme.text
+    property color textMuted: Theme.textMuted
     property string activeTool: "selection"
     property bool snapEnabled: true
     property real zoomValue: 0
+    property var timelineController: null
 
     signal closeRequested()
     signal menuRequested()
@@ -23,6 +24,8 @@ Rectangle {
     signal zoomInRequested()
     signal zoomOutRequested()
     signal zoomValueRequested(real value)
+    signal generateAudioRequested(string language)
+    signal autoEditRequested()
     
     signal undoRequested()
     signal redoRequested()
@@ -52,6 +55,7 @@ Rectangle {
 
             MouseArea {
                 anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
                 onClicked: headerRoot.closeRequested()
             }
         }
@@ -85,10 +89,10 @@ Rectangle {
         HeaderIconButton {
             iconSource: "qrc:/VideoStudioUI/assets/split.svg"
             toolTipText: qsTr("Split(Ctrl+B)")
-            enabled: headerRoot.playheadOverSelection
-            onClicked: headerRoot.splitRequested()
-        }
-
+            enabled: headerRoot.playheadOverSelection  
+            onClicked: headerRoot.splitRequested()   
+        }    
+        
         HeaderIconButton {
             iconSource: "qrc:/VideoStudioUI/assets/delete-left.svg"
             toolTipText: qsTr("Delete left(Q)")
@@ -174,6 +178,52 @@ Rectangle {
             onClicked: headerRoot.markerRequested()
         }
 
+        Rectangle {
+            Layout.preferredWidth: 1
+            Layout.preferredHeight: 18
+            color: Theme.divider
+            opacity: 0.85
+            Layout.leftMargin: 8
+            Layout.rightMargin: 8
+        }
+
+        ComboBox {
+            id: aiLangCombo
+            Layout.preferredHeight: 24
+            Layout.preferredWidth: 130
+            model: [qsTr("Khmer"), qsTr("English (Male)"), qsTr("English (Female)")]
+            
+            background: Rectangle {
+                color: aiLangCombo.pressed ? Theme.surfacePressed : (aiLangCombo.hovered ? Theme.surfaceHover : "transparent")
+                border.color: Theme.divider
+                border.width: 1
+                radius: 4
+            }
+            
+            contentItem: Text {
+                text: aiLangCombo.displayText
+                color: headerRoot.textPrimary
+                verticalAlignment: Text.AlignVCenter
+                leftPadding: 8
+                font.pixelSize: 12
+            }
+        }
+
+        HeaderIconButton {
+            iconSource: "qrc:/VideoStudioUI/assets/ai-voice.svg"
+            toolTipText: qsTr("Generate AI Voice from SRT")
+            enabled: headerRoot.timelineController && !headerRoot.timelineController.isGeneratingAIVoice
+            opacity: enabled ? 1.0 : 0.4
+            onClicked: headerRoot.generateAudioRequested(aiLangCombo.currentText)
+        }
+
+        HeaderIconButton {
+            iconSource: "qrc:/VideoStudioUI/assets/sync-lock.svg"
+            toolTipText: qsTr("Auto Edit (Sync Video/Images to Voice)")
+            enabled: headerRoot.timelineController
+            onClicked: headerRoot.autoEditRequested()
+        }
+
         Item { Layout.fillWidth: true }
 
         AbstractButton {
@@ -181,6 +231,9 @@ Rectangle {
             Layout.preferredWidth: 24
             Layout.preferredHeight: 24
             hoverEnabled: true
+
+            HoverHandler { cursorShape: Qt.PointingHandCursor }
+
             enabled: headerRoot.zoomValue > 0
             ToolTip.visible: hovered
             ToolTip.text: qsTr("Zoom Out")
@@ -249,7 +302,7 @@ Rectangle {
                     width: 12
                     height: 12
                     radius: 6
-                    color: zoomSlider.pressed ? "#e0e8eb" : "#ffffff"
+                    color: zoomSlider.pressed ? "#e0e8eb" : Theme.text
                     border.color: "#58a8d8"
                     border.width: zoomSlider.hovered ? 2 : 1
                 }
@@ -261,6 +314,9 @@ Rectangle {
             Layout.preferredWidth: 24
             Layout.preferredHeight: 24
             hoverEnabled: true
+
+            HoverHandler { cursorShape: Qt.PointingHandCursor }
+
             enabled: headerRoot.zoomValue < 1
             ToolTip.visible: hovered
             ToolTip.text: qsTr("Zoom In")
@@ -301,6 +357,7 @@ Rectangle {
 
             MouseArea {
                 anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
                 onClicked: headerRoot.menuRequested()
             }
         }
@@ -317,6 +374,8 @@ Rectangle {
         Layout.preferredHeight: 24
         hoverEnabled: true
         opacity: enabled ? 1.0 : 0.38
+
+        HoverHandler { cursorShape: Qt.PointingHandCursor }
 
         ToolTip.visible: hovered && toolTipText !== ""
         ToolTip.text: toolTipText

@@ -3,13 +3,238 @@
 #include <algorithm>
 #include <cmath>
 
+#include <QColor>
+#include <QVector3D>
+
+namespace {
+
+int clampChannel(double value)
+{
+    return std::clamp(static_cast<int>(std::lround(value)), 0, 255);
+}
+
+QImage applyColorAdjust(const QImage& source, const ColorEffectData& color)
+{
+    if (std::abs(color.brightness) < 0.0001
+        && std::abs(color.contrast - 100.0) < 0.0001
+        && std::abs(color.saturation - 100.0) < 0.0001) {
+        return source;
+    }
+
+    QImage result = source.convertToFormat(QImage::Format_ARGB32);
+    const double brightness = std::clamp(color.brightness, -100.0, 100.0) * 2.55;
+    const double contrast = std::max(0.0, color.contrast) / 100.0;
+    const double saturation = std::max(0.0, color.saturation) / 100.0;
+
+    for (int y = 0; y < result.height(); ++y) {
+        QRgb* line = reinterpret_cast<QRgb*>(result.scanLine(y));
+        for (int x = 0; x < result.width(); ++x) {
+            const QRgb pixel = line[x];
+            const double a = qAlpha(pixel);
+            double r = qRed(pixel);
+            double g = qGreen(pixel);
+            double b = qBlue(pixel);
+            const double gray = r * 0.299 + g * 0.587 + b * 0.114;
+
+            r = gray + (r - gray) * saturation;
+            g = gray + (g - gray) * saturation;
+            b = gray + (b - gray) * saturation;
+
+            r = (r - 128.0) * contrast + 128.0 + brightness;
+            g = (g - 128.0) * contrast + 128.0 + brightness;
+            b = (b - 128.0) * contrast + 128.0 + brightness;
+
+            line[x] = qRgba(clampChannel(r), clampChannel(g), clampChannel(b), clampChannel(a));
+        }
+    }
+
+    return result.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+}
+
+QImage applyMultiShotGrid(const QImage& source)
+{
+    if (source.isNull()) {
+        return source;
+    }
+
+    QImage result(source.size(), QImage::Format_ARGB32_Premultiplied);
+    result.fill(Qt::black);
+
+    QPainter painter(&result);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+
+    const int columns = 2;
+    const int rows = 2;
+    const int cellWidth = std::max(1, result.width() / columns);
+    const int cellHeight = std::max(1, result.height() / rows);
+
+    for (int row = 0; row < rows; ++row) {
+        for (int column = 0; column < columns; ++column) {
+            const QRect target(column * cellWidth,
+                               row * cellHeight,
+                               column == columns - 1 ? result.width() - column * cellWidth : cellWidth,
+                               row == rows - 1 ? result.height() - row * cellHeight : cellHeight);
+            painter.save();
+            painter.setClipRect(target);
+            if ((row + column) % 2 == 1) {
+                painter.translate(target.center());
+                painter.scale(-1.0, 1.0);
+                painter.translate(-target.center());
+            }
+            painter.drawImage(target, source);
+            painter.restore();
+        }
+    }
+
+    painter.setPen(QPen(QColor(255, 255, 255, 55), std::max(1, result.width() / 360)));
+    painter.drawLine(cellWidth, 0, cellWidth, result.height());
+    painter.drawLine(0, cellHeight, result.width(), cellHeight);
+    return result;
+}
+
+QImage applyGlitchStyle(const QImage& source, double intensity)
+{
+    if (source.isNull()) {
+        return source;
+    }
+
+    const int maxShift = std::max(1, static_cast<int>(std::lround(std::clamp(intensity, 0.0, 100.0) / 100.0 * 18.0)));
+    QImage input = source.convertToFormat(QImage::Format_ARGB32);
+    QImage result(input.size(), QImage::Format_ARGB32);
+
+    for (int y = 0; y < input.height(); ++y) {
+        const QRgb* src = reinterpret_cast<const QRgb*>(input.constScanLine(y));
+        QRgb* dst = reinterpret_cast<QRgb*>(result.scanLine(y));
+        const int redShift = static_cast<int>(std::lround(std::sin(y * 0.13) * maxShift));
+        const int blueShift = static_cast<int>(std::lround(std::cos(y * 0.09) * maxShift));
+        for (int x = 0; x < input.width(); ++x) {
+            const QRgb center = src[x];
+            const QRgb redPixel = src[std::clamp(x + redShift, 0, input.width() - 1)];
+            const QRgb bluePixel = src[std::clamp(x + blueShift, 0, input.width() - 1)];
+            dst[x] = qRgba(qRed(redPixel), qGreen(center), qBlue(bluePixel), qAlpha(center));
+        }
+    }
+
+    QPainter painter(&result);
+    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+    painter.fillRect(QRect(0, 0, result.width(), std::max(1, result.height() / 80)), QColor(255, 255, 255, 36));
+    painter.fillRect(QRect(0, result.height() / 2, result.width(), std::max(1, result.height() / 70)), QColor(0, 255, 255, 28));
+    painter.end();
+
+    return result.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+}
+
+QImage applyCarbonStyle(const QImage& source, double intensity)
+{
+    QImage result = source.convertToFormat(QImage::Format_ARGB32);
+    const double strength = std::clamp(intensity, 0.0, 100.0) / 100.0;
+
+    for (int y = 0; y < result.height(); ++y) {
+        QRgb* line = reinterpret_cast<QRgb*>(result.scanLine(y));
+        for (int x = 0; x < result.width(); ++x) {
+            const QRgb pixel = line[x];
+            const double gray = qRed(pixel) * 0.299 + qGreen(pixel) * 0.587 + qBlue(pixel) * 0.114;
+            const int carbon = clampChannel(gray * (0.8 + strength * 0.25));
+            const int cool = clampChannel(carbon + 12 * strength);
+            line[x] = qRgba(carbon, carbon, cool, qAlpha(pixel));
+        }
+    }
+
+    return result.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+}
+
+QImage applyGenericStylize(const QImage& source, const StylizeEffectData& stylize)
+{
+    if (stylize.styleName.compare(QStringLiteral("None"), Qt::CaseInsensitive) == 0
+        || stylize.intensity <= 0.0) {
+        return source;
+    }
+
+    if (stylize.styleName.compare(QStringLiteral("Multi-Shot Grid"), Qt::CaseInsensitive) == 0) {
+        return applyMultiShotGrid(source);
+    }
+    if (stylize.styleName.contains(QStringLiteral("Glitch"), Qt::CaseInsensitive)) {
+        return applyGlitchStyle(source, stylize.intensity);
+    }
+    if (stylize.styleName.contains(QStringLiteral("Carbon"), Qt::CaseInsensitive)) {
+        return applyCarbonStyle(source, stylize.intensity);
+    }
+
+    QImage result = source.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    QPainter painter(&result);
+    painter.setCompositionMode(QPainter::CompositionMode_SoftLight);
+    const uint hash = qHash(stylize.styleName);
+    const QColor tint(static_cast<int>(80 + hash % 120),
+                      static_cast<int>(80 + (hash >> 8) % 120),
+                      static_cast<int>(80 + (hash >> 16) % 120),
+                      static_cast<int>(std::clamp(stylize.intensity, 0.0, 100.0) * 1.2));
+    painter.fillRect(result.rect(), tint);
+    painter.end();
+    return result;
+}
+
+} // namespace
+
 QImage EffectProcessor::processImage(const QImage& source, const ClipEffects& effects)
 {
     if (source.isNull()) return source;
     
     QImage result = source;
 
-    // 1. Blur
+    // 0. Chroma Key
+    if (effects.chromaKey.enabled) {
+        QImage chromaImage = result.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+        QColor keyColor(effects.chromaKey.color);
+        int kr = keyColor.red();
+        int kg = keyColor.green();
+        int kb = keyColor.blue();
+        
+        // Convert variance (0.0 - 1.0) to squared distance threshold (max dist squared is 3*255^2 = 195075)
+        double maxDistSq = 195075.0;
+        double threshold = effects.chromaKey.variance * effects.chromaKey.variance * maxDistSq;
+        double softThreshold = (effects.chromaKey.variance + effects.chromaKey.softness) * (effects.chromaKey.variance + effects.chromaKey.softness) * maxDistSq;
+        
+        int width = chromaImage.width();
+        int height = chromaImage.height();
+        
+        for (int y = 0; y < height; ++y) {
+            QRgb* scanLine = reinterpret_cast<QRgb*>(chromaImage.scanLine(y));
+            for (int x = 0; x < width; ++x) {
+                QRgb pixel = scanLine[x];
+                int r = qRed(pixel);
+                int g = qGreen(pixel);
+                int b = qBlue(pixel);
+                int a = qAlpha(pixel);
+                
+                double distSq = (r - kr)*(r - kr) + (g - kg)*(g - kg) + (b - kb)*(b - kb);
+                
+                if (distSq < threshold) {
+                    a = 0;
+                } else if (distSq < softThreshold && softThreshold > threshold) {
+                    double alphaFactor = (distSq - threshold) / (softThreshold - threshold);
+                    a = static_cast<int>(a * alphaFactor);
+                    
+                    if (effects.chromaKey.spillSuppress) {
+                        // Simple spill suppress: reduce key color component
+                        if (kg > kr && kg > kb) { // Green screen
+                            g = std::min(g, std::max(r, b));
+                        } else if (kb > kr && kb > kg) { // Blue screen
+                            b = std::min(b, std::max(r, g));
+                        }
+                    }
+                }
+                
+                scanLine[x] = qRgba(r * a / 255, g * a / 255, b * a / 255, a);
+            }
+        }
+        result = chromaImage;
+    }
+
+    // 1. Color and stylize presets
+    result = applyColorAdjust(result, effects.color);
+    result = applyGenericStylize(result, effects.stylize);
+
+    // 2. Blur
     if (effects.blur.radius > 0) {
         int radius = std::clamp(static_cast<int>(std::lround(effects.blur.radius)), 1, 100);
         if (radius > 0) {
@@ -35,7 +260,7 @@ QImage EffectProcessor::processImage(const QImage& source, const ClipEffects& ef
         }
     }
 
-    // 2. Transform (Scale, Rotation, Position, Opacity)
+    // 3. Transform (Scale, Rotation, Position, Opacity)
     // We only apply this if it deviates from defaults, to save CPU.
     if (effects.transform.scale != 100.0 || effects.transform.rotation != 0.0 || 
         effects.transform.posX != 960.0 || effects.transform.posY != 540.0 || 

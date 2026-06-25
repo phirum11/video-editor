@@ -24,19 +24,19 @@ MenuItem {
             
             Text {
                 text: rootMenuItem.text
-                color: rootMenuItem.highlighted ? "#ffffff" : "#dce4e7"
+                color: rootMenuItem.highlighted ? Theme.text : "#dce4e7"
                 font.pixelSize: 13
                 Layout.fillWidth: true
             }
             Text {
                 text: rootMenuItem.shortcutText
-                color: rootMenuItem.highlighted ? "#ffffff" : "#6a7b83"
+                color: rootMenuItem.highlighted ? Theme.text : "#6a7b83"
                 font.pixelSize: 12
                 visible: rootMenuItem.shortcutText.length > 0
             }
             Text {
                 text: ">"
-                color: rootMenuItem.highlighted ? "#ffffff" : "#6a7b83"
+                color: rootMenuItem.highlighted ? Theme.text : "#6a7b83"
                 font.pixelSize: 12
                 visible: rootMenuItem.subMenu !== null
             }

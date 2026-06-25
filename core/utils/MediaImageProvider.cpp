@@ -1,7 +1,9 @@
 #include "MediaImageProvider.h"
 #include "core/media/models/MediaItem.h"
 #include <QMutexLocker>
+#include <QSemaphore>
 #include <QUrl>
+#include <QDebug>
 
 #include <algorithm>
 
@@ -23,9 +25,15 @@ QImage MediaImageProvider::requestImage(const QString& id, QSize* size, const QS
             ? parts.at(1).toDouble(&parsedTimestamp)
             : 0.0;
         const double frameSeconds = parsedTimestamp ? std::max(0.0, timestampSeconds) : 0.0;
-        const QSize targetSize = requestedSize.isValid() && !requestedSize.isEmpty()
-            ? requestedSize
-            : QSize(320, 180);
+        QSize targetSize(320, 180);
+        if (requestedSize.width() > 0 && requestedSize.height() > 0) {
+            targetSize = requestedSize;
+        } else if (requestedSize.width() > 0) {
+            targetSize = QSize(requestedSize.width(), 1);
+        } else if (requestedSize.height() > 0) {
+            targetSize = QSize(1, requestedSize.height());
+        }
+
         const QString cacheKey = QStringLiteral("%1|%2|%3x%4")
             .arg(filePath,
                  QString::number(frameSeconds, 'f', 3),
@@ -42,8 +50,35 @@ QImage MediaImageProvider::requestImage(const QString& id, QSize* size, const QS
             }
         }
 
-        MediaItem item(filePath);
-        QImage frame = item.extractFrame(frameSeconds, targetSize);
+        static QSemaphore s_ffmpegSemaphore(4);
+        QImage frame;
+
+        QString lowerPath = filePath.toLower();
+        bool isImageExt = lowerPath.endsWith(".png") || lowerPath.endsWith(".jpg") || 
+                          lowerPath.endsWith(".jpeg") || lowerPath.endsWith(".webp") || 
+                          lowerPath.endsWith(".bmp") || lowerPath.endsWith(".gif");
+                          
+        if (isImageExt) {
+            QImage rawImage(filePath);
+            if (!rawImage.isNull()) {
+                if (requestedSize.width() > 0 && requestedSize.height() > 0) {
+                    frame = rawImage.scaled(requestedSize, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+                } else if (requestedSize.width() > 0) {
+                    frame = rawImage.scaledToWidth(requestedSize.width(), Qt::SmoothTransformation);
+                } else if (requestedSize.height() > 0) {
+                    frame = rawImage.scaledToHeight(requestedSize.height(), Qt::SmoothTransformation);
+                } else {
+                    frame = rawImage;
+                }
+            }
+        }
+        
+        if (frame.isNull()) {
+            s_ffmpegSemaphore.acquire();
+            MediaItem item(filePath);
+            frame = item.extractFrame(frameSeconds, targetSize);
+            s_ffmpegSemaphore.release();
+        }
         
         if (size) {
             *size = frame.size();
@@ -56,7 +91,11 @@ QImage MediaImageProvider::requestImage(const QString& id, QSize* size, const QS
         }
 
         return frame;
+    } catch (const std::exception& e) {
+        qDebug() << "MediaImageProvider ERROR:" << e.what() << "for ID:" << id;
+        return QImage();
     } catch (...) {
+        qDebug() << "MediaImageProvider UNKNOWN ERROR for ID:" << id;
         return QImage();
     }
 }

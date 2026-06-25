@@ -9,12 +9,13 @@ import VideoStudioUI
 Rectangle {
     id: mediaPoolRoot
 
-    readonly property color panelTop: Theme.surface
-    readonly property color panelBody: Theme.background
-    readonly property color panelLine: Theme.divider
-    readonly property color textPrimary: "#dce4e7"
-    readonly property color textMuted: "#aeb9be"
-    readonly property color accent: "#66aacf"
+    property color panelTop: Theme.surface
+    property color panelBody: Theme.background
+    property color panelLine: Theme.divider
+    property alias mediaPoolController: mediaPoolController
+    property color textPrimary: Theme.text
+    property color textMuted: Theme.textMuted
+    property color accent: Theme.accent
 
     color: mediaPoolRoot.panelBody
     border.color: mediaPoolRoot.panelLine
@@ -22,22 +23,25 @@ Rectangle {
     clip: true
 
     property int currentTab: 0
-    property int selectedMediaIndex: -1
+    property var selectedMediaIndices: []
     property string viewMode: "grid"
     property real thumbnailZoom: 0.5
     property var addedMediaPaths: ({})
 
     signal mediaActivated(string name, string filePath, real duration, bool hasVideo, bool hasAudio)
     signal mediaDeleted(string filePath)
+    signal effectActivated(string name, string filePath)
 
     function deleteSelectedMedia() {
-        if (selectedMediaIndex < 0)
+        if (selectedMediaIndices.length === 0)
             return
 
-        const removedRow = selectedMediaIndex
-        if (mediaPoolController.removeMediaAt(removedRow)) {
-            selectedMediaIndex = mediaGrid.count > 0 ? Math.min(removedRow, mediaGrid.count - 1) : -1
+        // Sort descending so indices don't shift when deleting
+        const sortedIndices = selectedMediaIndices.slice().sort((a, b) => b - a)
+        for (let i = 0; i < sortedIndices.length; i++) {
+            mediaPoolController.removeMediaAt(sortedIndices[i])
         }
+        selectedMediaIndices = []
     }
 
     function markMediaAdded(filePath) {
@@ -62,7 +66,9 @@ Rectangle {
     }
 
     function activateMedia(index, name, filePath, duration, hasVideo, hasAudio) {
-        selectedMediaIndex = index
+        if (!selectedMediaIndices.includes(index)) {
+            selectedMediaIndices = [index]
+        }
         markMediaAdded(filePath)
         mediaActivated(name, filePath, duration, hasVideo, hasAudio)
     }
@@ -112,11 +118,7 @@ Rectangle {
                     onClicked: mediaPoolRoot.currentTab = 1
                 }
 
-                TabButton {
-                    text: qsTr("AI Assist")
-                    checked: mediaPoolRoot.currentTab === 2
-                    onClicked: mediaPoolRoot.currentTab = 2
-                }
+
 
                 Item {
                     Layout.fillWidth: true
@@ -197,10 +199,11 @@ Rectangle {
                                     anchors.bottom: parent.bottom
                                     placeholderText: qsTr("Search")
                                     color: mediaPoolRoot.textPrimary
-                                    placeholderTextColor: "#6f8188"
+                                    placeholderTextColor: Theme.textMuted
                                     font.pixelSize: 13
                                     selectByMouse: true
                                     background: Item {}
+                                    onTextChanged: mediaPoolController.searchQuery = text
                                 }
                             }
 
@@ -209,9 +212,11 @@ Rectangle {
                                 text: qsTr("Delete")
                                 implicitWidth: 64
                                 implicitHeight: 26
-                                enabled: mediaPoolRoot.selectedMediaIndex >= 0
+                                enabled: mediaPoolRoot.selectedMediaIndices.length > 0
                                 hoverEnabled: enabled
                                 opacity: enabled ? 1 : 0.42
+
+                                HoverHandler { cursorShape: Qt.PointingHandCursor }
 
                                 background: Rectangle {
                                     radius: 3
@@ -236,6 +241,8 @@ Rectangle {
                                 implicitWidth: 72
                                 implicitHeight: 26
                                 hoverEnabled: true
+
+                                HoverHandler { cursorShape: Qt.PointingHandCursor }
 
                                 background: Rectangle {
                                     radius: 3
@@ -281,26 +288,188 @@ Rectangle {
                     GridView {
                         id: mediaGrid
                         anchors.fill: parent
-                        anchors.margins: 12
+                        topMargin: 12
+                        leftMargin: 12
+                        rightMargin: 12
+                        bottomMargin: 12
+                        interactive: false // Disabled so Flickable doesn't steal drags from rubber band
+                        z: 1
+
+                        // Smooth animated scrolling (like CapCut)
+                        Behavior on contentY {
+                            SmoothedAnimation {
+                                velocity: 1500
+                                duration: -1
+                            }
+                        }
+
+                        // Mouse wheel scrolling since interactive is false
+                        WheelHandler {
+                            onWheel: (event) => {
+                                // Use actual wheel delta for proportional, natural feel
+                                let pixelDelta = event.angleDelta.y * 2.5
+                                let target = mediaGrid.contentY - pixelDelta
+                                let minY = mediaGrid.originY
+                                let maxY = mediaGrid.originY + mediaGrid.contentHeight - mediaGrid.height
+                                mediaGrid.contentY = Math.max(minY, Math.min(target, maxY))
+                            }
+                        }
+
+                        MouseArea {
+                            id: rubberBandArea
+                            parent: mediaGrid
+                            anchors.fill: mediaGrid
+                            z: -1
+                            preventStealing: true
+                            
+                            // startPos stored in CONTENT coordinates (not viewport)
+                            property point startContentPos: Qt.point(0,0)
+                            property bool isDragging: false
+                            property var initialSelection: []
+                            property real lastMouseX: 0
+                            property real lastMouseY: 0
+
+                            // Helper: compute selection rect in CONTENT coordinates
+                            function contentSelectionRect() {
+                                let curContentX = lastMouseX + mediaGrid.contentX
+                                let curContentY = lastMouseY + mediaGrid.contentY
+                                return Qt.rect(
+                                    Math.min(startContentPos.x, curContentX),
+                                    Math.min(startContentPos.y, curContentY),
+                                    Math.abs(curContentX - startContentPos.x),
+                                    Math.abs(curContentY - startContentPos.y)
+                                )
+                            }
+
+                            // Helper: update visual rubber band (viewport coordinates)
+                            function updateRubberBandVisual() {
+                                let cRect = contentSelectionRect()
+                                rubberBand.x = cRect.x - mediaGrid.contentX
+                                rubberBand.y = cRect.y - mediaGrid.contentY
+                                rubberBand.width = cRect.width
+                                rubberBand.height = cRect.height
+                            }
+
+                            // Helper: run hit-test on items (content coordinates)
+                            function updateSelection() {
+                                let cRect = contentSelectionRect()
+                                let selected = initialSelection.slice()
+                                let itemsPerRow = Math.max(1, Math.floor(mediaGrid.width / mediaGrid.cellWidth))
+                                for (let i = 0; i < mediaGrid.count; i++) {
+                                    let col = i % itemsPerRow
+                                    let row = Math.floor(i / itemsPerRow)
+                                    // Item positions in content coordinates (no offset needed)
+                                    let itemX = col * mediaGrid.cellWidth
+                                    let itemY = row * mediaGrid.cellHeight
+                                    let itemRect = Qt.rect(itemX, itemY, mediaGrid.cellWidth, mediaGrid.cellHeight)
+                                    
+                                    if (cRect.x < itemRect.x + itemRect.width &&
+                                        cRect.x + cRect.width > itemRect.x &&
+                                        cRect.y < itemRect.y + itemRect.height &&
+                                        cRect.y + cRect.height > itemRect.y) {
+                                        if (!selected.includes(i)) selected.push(i)
+                                    }
+                                }
+                                mediaPoolRoot.selectedMediaIndices = selected
+                            }
+
+                            // Auto-scroll timer: when dragging near edges, auto-scroll the grid
+                            Timer {
+                                id: autoScrollTimer
+                                interval: 16 // ~60fps
+                                repeat: true
+                                running: rubberBandArea.isDragging
+                                onTriggered: {
+                                    let edgeZone = 40
+                                    let mouseY = rubberBandArea.lastMouseY
+                                    let scrollSpeed = 0
+
+                                    if (mouseY < edgeZone) {
+                                        scrollSpeed = -Math.round((edgeZone - mouseY) * 0.3)
+                                    } else if (mouseY > mediaGrid.height - edgeZone) {
+                                        scrollSpeed = Math.round((mouseY - (mediaGrid.height - edgeZone)) * 0.3)
+                                    }
+
+                                    if (scrollSpeed !== 0) {
+                                        let minY = mediaGrid.originY
+                                        let maxY = mediaGrid.originY + mediaGrid.contentHeight - mediaGrid.height
+                                        mediaGrid.contentY = Math.max(minY, Math.min(mediaGrid.contentY + scrollSpeed, maxY))
+                                        rubberBandArea.updateRubberBandVisual()
+                                        rubberBandArea.updateSelection()
+                                    }
+                                }
+                            }
+                            
+                            onPressed: (mouse) => {
+                                // Store start position in CONTENT coordinates
+                                startContentPos = Qt.point(mouse.x + mediaGrid.contentX, mouse.y + mediaGrid.contentY)
+                                lastMouseX = mouse.x
+                                lastMouseY = mouse.y
+                                isDragging = true
+                                rubberBand.x = mouse.x
+                                rubberBand.y = mouse.y
+                                rubberBand.width = 0
+                                rubberBand.height = 0
+                                rubberBand.visible = true
+                                if (mouse.modifiers & Qt.ControlModifier) {
+                                    initialSelection = mediaPoolRoot.selectedMediaIndices.slice()
+                                } else {
+                                    initialSelection = []
+                                    mediaPoolRoot.selectedMediaIndices = []
+                                }
+                            }
+                            onPositionChanged: (mouse) => {
+                                if (!isDragging) return
+                                lastMouseX = mouse.x
+                                lastMouseY = mouse.y
+                                updateRubberBandVisual()
+                                updateSelection()
+                            }
+                            onReleased: {
+                                isDragging = false
+                                rubberBand.visible = false
+                            }
+                            onCanceled: {
+                                isDragging = false
+                                rubberBand.visible = false
+                            }
+                        }
+
+                        Rectangle {
+                            id: rubberBand
+                            parent: rubberBandArea
+                            visible: false
+                            color: Qt.rgba(mediaPoolRoot.accent.r, mediaPoolRoot.accent.g, mediaPoolRoot.accent.b, 0.2)
+                            border.color: mediaPoolRoot.accent
+                            border.width: 1
+                            z: 9999
+                        }
+
                         cellWidth: mediaPoolRoot.viewMode === "list"
                             ? Math.max(120, width - 16)
                             : Math.round(104 + mediaPoolRoot.thumbnailZoom * 120)
                         cellHeight: mediaPoolRoot.viewMode === "list"
-                            ? 62
-                            : Math.round(96 + mediaPoolRoot.thumbnailZoom * 98)
+                            ? 64
+                            : Math.round(96 + mediaPoolRoot.thumbnailZoom * 120)
+                        
                         model: mediaPoolController.mediaModel
-                        currentIndex: mediaPoolRoot.selectedMediaIndex
-                        visible: count > 0
                         clip: true
-                        onCountChanged: {
-                            if (count === 0)
-                                mediaPoolRoot.selectedMediaIndex = -1
-                            else if (mediaPoolRoot.selectedMediaIndex >= count)
-                                mediaPoolRoot.selectedMediaIndex = count - 1
-                        }
 
                         ScrollBar.vertical: ScrollBar {
-                            policy: ScrollBar.AsNeeded
+                            policy: mediaGrid.contentHeight > mediaGrid.height ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
+                            active: true
+                            interactive: true
+                        }
+
+                        visible: count > 0
+                        onCountChanged: {
+                            if (count === 0)
+                                mediaPoolRoot.selectedMediaIndices = []
+                            else {
+                                // Filter out invalid indices
+                                const validIndices = mediaPoolRoot.selectedMediaIndices.filter(idx => idx < count)
+                                mediaPoolRoot.selectedMediaIndices = validIndices
+                            }
                         }
 
                         delegate: Item {
@@ -336,7 +505,7 @@ Rectangle {
                                 id: delegateHover
                             }
 
-                            Rectangle {
+                                Rectangle {
                                 id: thumbnail
                                 x: mediaDelegate.listMode ? 8 : (parent.width - width) / 2
                                 y: mediaDelegate.listMode ? 8 : 0
@@ -344,17 +513,12 @@ Rectangle {
                                 height: mediaDelegate.thumbnailHeight
                                 radius: 6
                                 color: mediaDelegate.cardHovered ? "#253139" : "#20292f"
-                                border.color: GridView.isCurrentItem
-                                    ? mediaPoolRoot.accent
-                                    : (mediaDelegate.cardHovered ? "#435b66" : "transparent")
-                                border.width: GridView.isCurrentItem || mediaDelegate.cardHovered ? 1 : 0
                                 clip: true
 
                                 Image {
                                     id: thumbImage
                                     anchors.fill: parent
-                                    anchors.margins: 1
-                                    source: "image://media/" + encodeURIComponent(mediaDelegate.filePath)
+                                    source: mediaDelegate.filePath.toLowerCase().endsWith(".srt") ? "" : ("image://media/" + encodeURIComponent(mediaDelegate.filePath))
                                     sourceSize.width: Math.ceil(thumbnail.width)
                                     sourceSize.height: Math.ceil(thumbnail.height)
                                     asynchronous: true
@@ -365,8 +529,7 @@ Rectangle {
                                 Rectangle {
                                     id: maskRect
                                     anchors.fill: parent
-                                    anchors.margins: 1
-                                    radius: 5
+                                    radius: 6
                                     color: "black"
                                     visible: false
                                     layer.enabled: true
@@ -382,11 +545,25 @@ Rectangle {
                                 Rectangle {
                                     anchors.fill: parent
                                     color: "transparent"
-                                    border.color: "#000000"
-                                    border.width: 1
-                                    opacity: 0.2
+                                    border.color: mediaPoolRoot.selectedMediaIndices.includes(mediaDelegate.index)
+                                        ? mediaPoolRoot.accent
+                                        : (mediaDelegate.cardHovered ? "#435b66" : "#000000")
+                                    border.width: mediaPoolRoot.selectedMediaIndices.includes(mediaDelegate.index) ? 3 : 1
+                                    opacity: mediaPoolRoot.selectedMediaIndices.includes(mediaDelegate.index) ? 1.0 : (mediaDelegate.cardHovered ? 1.0 : 0.2)
                                     radius: parent.radius
                                 }
+
+                                // SRT file placeholder icon
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "📝"
+                                    font.pixelSize: 24
+                                    visible: mediaDelegate.filePath.toLowerCase().endsWith(".srt")
+                                }
+                            }
+
+                            Item {
+                                id: dragTargetDummy
                             }
 
                             Rectangle {
@@ -398,18 +575,39 @@ Rectangle {
                                 readonly property bool mediaHasVideo: mediaDelegate.mediaHasVideo
                                 readonly property bool mediaHasAudio: mediaDelegate.mediaHasAudio
 
-                                x: thumbnail.x
-                                y: thumbnail.y
+                                property point startOverlayPos: Qt.point(0, 0)
+                                property bool isDragging: false
+                                property var selectedMediaList: []
+
+                                onIsDraggingChanged: {
+                                    if (isDragging) {
+                                        let list = []
+                                        let indices = mediaPoolRoot.selectedMediaIndices.slice().sort((a,b) => a - b)
+                                        if (indices.length === 0 || !indices.includes(mediaDelegate.index)) {
+                                            indices = [mediaDelegate.index]
+                                        }
+                                        for (let i = 0; i < indices.length; i++) {
+                                            let info = mediaPoolController.getMediaAt(indices[i])
+                                            list.push(info)
+                                        }
+                                        selectedMediaList = list
+                                    }
+                                }
+
+                                parent: isDragging ? Overlay.overlay : mediaDelegate
+                                x: isDragging ? startOverlayPos.x + dragTargetDummy.x : thumbnail.x
+                                y: isDragging ? startOverlayPos.y + dragTargetDummy.y : thumbnail.y
                                 width: thumbnail.width
                                 height: thumbnail.height
                                 radius: 2
-                                visible: dragMouse.drag.active
+                                visible: isDragging
                                 opacity: 0.82
                                 color: "#12242d"
                                 border.color: mediaPoolRoot.accent
                                 border.width: 1
+                                z: 99999
 
-                                Drag.active: dragMouse.drag.active
+                                Drag.active: isDragging
                                 Drag.source: dragProxy
                                 Drag.keys: ["videoStudio/media"]
                                 Drag.supportedActions: Qt.CopyAction
@@ -419,10 +617,32 @@ Rectangle {
                                 Image {
                                     anchors.fill: parent
                                     anchors.margins: 1
-                                    source: "image://media/" + encodeURIComponent(mediaDelegate.filePath)
+                                    source: mediaDelegate.filePath.toLowerCase().endsWith(".srt") ? "" : ("image://media/" + encodeURIComponent(mediaDelegate.filePath))
                                     sourceSize.width: Math.ceil(thumbnail.width)
                                     sourceSize.height: Math.ceil(thumbnail.height)
                                     fillMode: Image.PreserveAspectCrop
+                                }
+
+                                // Count badge (like CapCut) — shows number of selected items
+                                Rectangle {
+                                    id: dragCountBadge
+                                    x: parent.width - width / 2
+                                    y: -height / 2
+                                    width: Math.max(22, dragCountText.implicitWidth + 10)
+                                    height: 22
+                                    radius: 11
+                                    color: mediaPoolRoot.accent
+                                    visible: dragProxy.selectedMediaList.length > 1
+                                    z: 100
+
+                                    Text {
+                                        id: dragCountText
+                                        anchors.centerIn: parent
+                                        text: dragProxy.selectedMediaList.length
+                                        color: "#ffffff"
+                                        font.pixelSize: 12
+                                        font.bold: true
+                                    }
                                 }
                             }
 
@@ -462,7 +682,7 @@ Rectangle {
                                     id: durationLabel
                                     anchors.centerIn: parent
                                     text: mediaPoolRoot.formatDuration(mediaDelegate.mediaDuration)
-                                    color: "#f0f8fa"
+                                    color: Theme.text
                                     font.pixelSize: 11
                                 }
                             }
@@ -477,6 +697,8 @@ Rectangle {
                                 hoverEnabled: true
                                 z: 5
 
+                                HoverHandler { cursorShape: Qt.PointingHandCursor }
+
                                 background: Rectangle {
                                     radius: width / 2
                                     color: quickAddButton.pressed ? "#11aebf" : "#17c9d7"
@@ -486,7 +708,7 @@ Rectangle {
 
                                 contentItem: Text {
                                     text: "+"
-                                    color: "#ffffff"
+                                    color: Theme.text
                                     font.pixelSize: 18
                                     font.weight: Font.DemiBold
                                     horizontalAlignment: Text.AlignHCenter
@@ -561,7 +783,7 @@ Rectangle {
                                     implicitWidth: 180
                                     color: "#282828"
                                     radius: 6
-                                    border.color: "#383838"
+                                    border.color: Theme.surfaceHover
                                     border.width: 1
                                 }
                                 
@@ -572,12 +794,12 @@ Rectangle {
                                     contentItem: Text {
                                         leftPadding: 16
                                         text: itemOpen.text
-                                        color: itemOpen.highlighted ? "#ffffff" : "#cddbe2"
+                                        color: itemOpen.highlighted ? Theme.text : Theme.textMuted
                                         font.pixelSize: 13
                                         verticalAlignment: Text.AlignVCenter
                                     }
                                     background: Rectangle {
-                                        color: itemOpen.highlighted ? "#383838" : "transparent"
+                                        color: itemOpen.highlighted ? Theme.surfaceHover : "transparent"
                                         radius: 4
                                         anchors.fill: parent
                                         anchors.margins: 4
@@ -592,12 +814,12 @@ Rectangle {
                                     contentItem: Text {
                                         leftPadding: 16
                                         text: itemRename.text
-                                        color: itemRename.highlighted ? "#ffffff" : "#cddbe2"
+                                        color: itemRename.highlighted ? Theme.text : Theme.textMuted
                                         font.pixelSize: 13
                                         verticalAlignment: Text.AlignVCenter
                                     }
                                     background: Rectangle {
-                                        color: itemRename.highlighted ? "#383838" : "transparent"
+                                        color: itemRename.highlighted ? Theme.surfaceHover : "transparent"
                                         radius: 4
                                         anchors.fill: parent
                                         anchors.margins: 4
@@ -615,12 +837,12 @@ Rectangle {
                                     contentItem: Text {
                                         leftPadding: 16
                                         text: itemDelete.text
-                                        color: itemDelete.highlighted ? "#ffffff" : "#cddbe2"
+                                        color: itemDelete.highlighted ? Theme.text : Theme.textMuted
                                         font.pixelSize: 13
                                         verticalAlignment: Text.AlignVCenter
                                     }
                                     background: Rectangle {
-                                        color: itemDelete.highlighted ? "#383838" : "transparent"
+                                        color: itemDelete.highlighted ? Theme.surfaceHover : "transparent"
                                         radius: 4
                                         anchors.fill: parent
                                         anchors.margins: 4
@@ -631,19 +853,47 @@ Rectangle {
 
                             MouseArea {
                                 id: dragMouse
-                                anchors.fill: parent
+                                x: thumbnail.x
+                                y: thumbnail.y
+                                width: mediaDelegate.listMode ? (nameText.x + nameText.width - thumbnail.x) : thumbnail.width
+                                height: mediaDelegate.listMode ? thumbnail.height : (nameText.y + nameText.height - thumbnail.y)
                                 hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
                                 acceptedButtons: Qt.LeftButton | Qt.RightButton
-                                drag.target: dragProxy
+                                drag.target: dragTargetDummy
                                 drag.threshold: 8
 
                                 onPressed: (mouse) => {
-                                    mediaPoolRoot.selectedMediaIndex = mediaDelegate.index
+                                    if (!mediaPoolRoot.selectedMediaIndices.includes(mediaDelegate.index)) {
+                                        if (mouse.modifiers & Qt.ControlModifier) {
+                                            mediaPoolRoot.selectedMediaIndices = mediaPoolRoot.selectedMediaIndices.concat([mediaDelegate.index])
+                                        } else {
+                                            mediaPoolRoot.selectedMediaIndices = [mediaDelegate.index]
+                                        }
+                                    }
+                                }
+                                onPositionChanged: {
+                                    if (drag.active && !dragProxy.isDragging) {
+                                        dragProxy.startOverlayPos = thumbnail.mapToItem(Overlay.overlay, 0, 0)
+                                        dragProxy.isDragging = true
+                                    }
                                 }
                                 onClicked: (mouse) => {
-                                    mediaPoolRoot.selectedMediaIndex = mediaDelegate.index
                                     if (mouse.button === Qt.RightButton) {
+                                        if (!mediaPoolRoot.selectedMediaIndices.includes(mediaDelegate.index)) {
+                                            mediaPoolRoot.selectedMediaIndices = [mediaDelegate.index]
+                                        }
                                         contextMenu.popup()
+                                    } else {
+                                        if (mouse.modifiers & Qt.ControlModifier) {
+                                            let current = mediaPoolRoot.selectedMediaIndices.slice()
+                                            let pos = current.indexOf(mediaDelegate.index)
+                                            if (pos === -1) current.push(mediaDelegate.index)
+                                            else current.splice(pos, 1)
+                                            mediaPoolRoot.selectedMediaIndices = current
+                                        } else {
+                                            mediaPoolRoot.selectedMediaIndices = [mediaDelegate.index]
+                                        }
                                     }
                                 }
                                 onDoubleClicked: mediaPoolRoot.activateMedia(
@@ -655,12 +905,17 @@ Rectangle {
                                     mediaDelegate.mediaHasAudio
                                 )
                                 onReleased: {
-                                    dragProxy.x = thumbnail.x
-                                    dragProxy.y = thumbnail.y
+                                    if (dragProxy.isDragging) {
+                                        dragProxy.Drag.drop()
+                                    }
+                                    dragProxy.isDragging = false
+                                    dragTargetDummy.x = 0
+                                    dragTargetDummy.y = 0
                                 }
                                 onCanceled: {
-                                    dragProxy.x = thumbnail.x
-                                    dragProxy.y = thumbnail.y
+                                    dragProxy.isDragging = false
+                                    dragTargetDummy.x = 0
+                                    dragTargetDummy.y = 0
                                 }
                             }
                         }
@@ -683,7 +938,7 @@ Rectangle {
                         Text {
                             Layout.fillWidth: true
                             text: qsTr("No media imported")
-                            color: "#7f9199"
+                            color: Theme.textMuted
                             font.pixelSize: 13
                             horizontalAlignment: Text.AlignHCenter
                             wrapMode: Text.WordWrap
@@ -709,13 +964,12 @@ Rectangle {
             EffectHub {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                onEffectActivated: function(name, filePath) {
+                    mediaPoolRoot.effectActivated(name, filePath)
+                }
             }
 
-            // Tab 2: AI Assist
-            AIAssist {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-            }
+
         }
     }
     component TabButton: AbstractButton {
@@ -725,6 +979,8 @@ Rectangle {
         Layout.minimumWidth: 62
         Layout.preferredWidth: implicitWidth
         hoverEnabled: true
+
+        HoverHandler { cursorShape: Qt.PointingHandCursor }
 
         background: Rectangle {
             color: tab.checked ? mediaPoolRoot.panelTop : tab.hovered ? Theme.surfaceHover : Theme.background

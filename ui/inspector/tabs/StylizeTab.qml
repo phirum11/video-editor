@@ -9,8 +9,14 @@ pragma ComponentBehavior: Bound
 
 ScrollView {
     id: rootScrollView
+    property var effectController: null
     clip: true
     contentWidth: availableWidth
+    ScrollBar.vertical: ScrollBar {
+        policy: ScrollBar.AsNeeded
+        width: 12
+    }
+    
     ColumnLayout {
         width: rootScrollView.availableWidth
         spacing: 2

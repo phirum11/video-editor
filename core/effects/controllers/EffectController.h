@@ -7,6 +7,7 @@
 #include "core/effects/models/BlurEffect.h"
 #include "core/effects/models/StylizeEffect.h"
 #include "core/effects/models/AudioEffect.h"
+#include "core/effects/models/ChromaKeyEffect.h"
 
 #include "ui/timeline_view/controllers/TimelineController.h"
 #include "core/timeline/models/TimelineClipModel.h"
@@ -24,6 +25,7 @@ class EffectController : public QObject
     Q_PROPERTY(BlurEffect* blur READ blur CONSTANT)
     Q_PROPERTY(StylizeEffect* stylize READ stylize CONSTANT)
     Q_PROPERTY(AudioEffect* audio READ audio CONSTANT)
+    Q_PROPERTY(ChromaKeyEffect* chromaKey READ chromaKey CONSTANT)
     
     Q_PROPERTY(TimelineController* timelineController READ timelineController WRITE setTimelineController NOTIFY timelineControllerChanged)
 
@@ -36,6 +38,7 @@ public:
     BlurEffect* blur() const { return m_blur; }
     StylizeEffect* stylize() const { return m_stylize; }
     AudioEffect* audio() const { return m_audio; }
+    ChromaKeyEffect* chromaKey() const { return m_chromaKey; }
 
     TimelineController* timelineController() const { return m_timelineController; }
     void setTimelineController(TimelineController* controller);
@@ -44,6 +47,13 @@ public:
     void setPlaybackEngine(PlaybackEngine* engine);
 
     Q_INVOKABLE void resetAll();
+    Q_INVOKABLE void applyPreset(const QString& presetName);
+    Q_INVOKABLE int addPresetToTimeline(const QString& presetName,
+                                        const QString& thumbnailPath,
+                                        double startSeconds = -1.0,
+                                        int trackIndex = 0,
+                                        double durationSeconds = 5.0);
+    Q_INVOKABLE void refreshPlaybackEffects(double timelineSeconds, int baseClipRow = -1);
 
 signals:
     void timelineControllerChanged();
@@ -55,14 +65,19 @@ private slots:
 
 private:
     ClipEffects currentEffects() const;
+    ClipEffects presetEffects(const QString& presetName) const;
+    ClipEffects combinedEffectsAt(double timelineSeconds, int baseClipRow) const;
     void loadClipEffects(int row);
     void saveClipEffects(int row);
+    int findBaseVideoRowAt(double timelineSeconds) const;
+    QString normalizeLocalPath(const QString& path) const;
 
     TransformEffect* m_transform;
     ColorEffect* m_color;
     BlurEffect* m_blur;
     StylizeEffect* m_stylize;
     AudioEffect* m_audio;
+    ChromaKeyEffect* m_chromaKey;
 
     TimelineController* m_timelineController = nullptr;
     TimelineClipModel* m_clipModel = nullptr;
@@ -70,4 +85,3 @@ private:
 
     bool m_isUpdatingFromModel = false;
 };
-

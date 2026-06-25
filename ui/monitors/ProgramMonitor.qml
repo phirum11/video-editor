@@ -25,65 +25,94 @@ Rectangle {
     property var effectCtrl: null
     property alias playbackEngine: playback
 
-    readonly property color panelBody: Theme.background
-    readonly property color panelHeader: Theme.surface
-    readonly property color panelLine: Theme.divider
-    readonly property color textPrimary: "#dce5e8"
-    readonly property color textMuted: "#8fa2aa"
-    readonly property color accent: "#66aacf"
+    property color panelBody: Theme.background
+    property color panelHeader: Theme.surface
+    property color panelLine: Theme.divider
+    property color textPrimary: Theme.text
+    property color textMuted: Theme.textMuted
+    property color accent: Theme.accent
 
     color: previewRoot.panelBody
     border.color: previewRoot.panelLine
     border.width: 1
     clip: true
 
-    function loadClip(name, path, clipDuration, clipHasVideo, origPath = "") {
+    property int currentlyLoadedVideoRow: -1
+    property var currentlyLoadedAuxRows: [-1, -1, -1, -1, -1, -1, -1, -1]
+    property bool isSwappingClip: false
+
+    function loadClip(name, path, clipDuration, clipHasVideo, origPath = "", isMuted = false) {
         playback.setSourceInPoint(0)
+        playback.isMuted = isMuted
         playback.loadClip(name, path, clipDuration, clipHasVideo, origPath)
+        refreshTimelineEffects(playback.position, currentlyLoadedVideoRow)
     }
 
-    function loadClipWithOffset(name, path, clipDuration, clipHasVideo, startOffset, sourceInPoint, rowIndex) {
+    function loadClipWithOffset(name, path, clipDuration, clipHasVideo, startOffset, sourceInPoint, rowIndex, isMuted = false) {
         if (rowIndex !== undefined) {
-            currentlyLoadedRow = rowIndex;
+            currentlyLoadedVideoRow = rowIndex;
         } else {
-            // Find row
-            currentlyLoadedRow = -1;
+            currentlyLoadedVideoRow = -1;
             if (timelineCtrl) {
                 for (let i = 0; i < timelineCtrl.clipCount; ++i) {
                     if (timelineCtrl.clipContains(i, startOffset + 0.001)) {
-                        currentlyLoadedRow = i;
+                        currentlyLoadedVideoRow = i;
                         break;
                     }
                 }
             }
         }
         let origPath = "";
-        if (currentlyLoadedRow >= 0 && timelineCtrl) {
-            let clipData = timelineCtrl.clipAt(currentlyLoadedRow);
+        if (currentlyLoadedVideoRow >= 0 && timelineCtrl) {
+            let clipData = timelineCtrl.clipAt(currentlyLoadedVideoRow);
             origPath = clipData ? (clipData.originalFilePath || "") : "";
+            isMuted = clipData ? (clipData.isMuted === true) : false;
         }
-        
         isSwappingClip = true;
         playback.setSourceInPoint(sourceInPoint !== undefined ? sourceInPoint : 0)
         playback.setClipStartOffset(startOffset)
+        playback.isMuted = isMuted
         playback.loadClip(name, path, clipDuration, clipHasVideo, origPath)
+        refreshTimelineEffects(startOffset !== undefined ? startOffset : playback.position, currentlyLoadedVideoRow)
         isSwappingClip = false;
     }
 
     function clearPreview() {
         playback.clear()
+        if (auxAudioRepeater) {
+            for (let i = 0; i < auxAudioRepeater.count; ++i) {
+                let engine = auxAudioRepeater.itemAt(i);
+                if (engine) engine.clear();
+            }
+        }
     }
 
     function pausePreview() {
         playback.pause()
+        if (auxAudioRepeater) {
+            for (let i = 0; i < auxAudioRepeater.count; ++i) {
+                let engine = auxAudioRepeater.itemAt(i);
+                if (engine) engine.pause();
+            }
+        }
     }
 
     function seekTo(seconds) {
         playback.seek(seconds)
+        if (auxAudioRepeater) {
+            for (let i = 0; i < auxAudioRepeater.count; ++i) {
+                let engine = auxAudioRepeater.itemAt(i);
+                if (engine) engine.seek(seconds);
+            }
+        }
+        refreshTimelineEffects(seconds, currentlyLoadedVideoRow)
     }
 
-    property int currentlyLoadedRow: -1
-    property bool isSwappingClip: false
+    function refreshTimelineEffects(seconds, baseVideoRow) {
+        if (previewRoot.effectCtrl) {
+            previewRoot.effectCtrl.refreshPlaybackEffects(seconds, baseVideoRow !== undefined ? baseVideoRow : -1)
+        }
+    }
 
     Binding {
         target: playback
@@ -91,45 +120,159 @@ Rectangle {
         value: previewRoot.timelineCtrl ? previewRoot.timelineCtrl.timelineEndSeconds : 0.0
     }
 
+    // Throttle timer for clip scanning — runs at most every 100ms
+    Timer {
+        id: clipScanTimer
+        interval: 100
+        repeat: false
+        onTriggered: previewRoot.scanClipsAtPosition()
+    }
+
+    function scanClipsAtPosition() {
+        if (previewRoot.isSwappingClip || !previewRoot.timelineCtrl || previewRoot.timelineCtrl.clipCount === 0)
+            return;
+
+        let pos = playback.position;
+        let currentVideoRow = -1;
+        let currentAudioRows = [];
+
+        for (let i = 0; i < previewRoot.timelineCtrl.clipCount; ++i) {
+            if (previewRoot.timelineCtrl.clipContains(i, pos)) {
+                let clipData = previewRoot.timelineCtrl.clipAt(i);
+                
+                let isVideoTrack = clipData.hasVideo;
+                let trackIdx = clipData.trackIndex >= 100 ? clipData.trackIndex - 100 : clipData.trackIndex;
+                
+                if (isVideoTrack) {
+                    if (previewRoot.timelineCtrl.isTrackHidden(true, trackIdx)) {
+                        continue;
+                    }
+                    if (currentVideoRow === -1) {
+                        currentVideoRow = i;
+                    } else if (clipData.hasAudio) {
+                        if (!previewRoot.timelineCtrl.isTrackMuted(true, trackIdx) && !clipData.isMuted) {
+                            currentAudioRows.push(i);
+                        }
+                    }
+                } else if (clipData.hasAudio) {
+                    if (previewRoot.timelineCtrl.isTrackMuted(false, trackIdx) || clipData.isMuted) {
+                        continue;
+                    }
+                    // Only include clips that actually have audio — skip SRT/subtitle clips
+                    currentAudioRows.push(i);
+                }
+            }
+        }
+
+        // Update main video engine
+        if (currentVideoRow >= 0 && currentVideoRow !== previewRoot.currentlyLoadedVideoRow) {
+            previewRoot.isSwappingClip = true;
+            previewRoot.currentlyLoadedVideoRow = currentVideoRow;
+
+            let clipData = previewRoot.timelineCtrl.clipAt(currentVideoRow);
+            let wasPlaying = playback.playing;
+            let currentPos = playback.position;
+
+            let trackIdx = clipData.trackIndex >= 100 ? clipData.trackIndex - 100 : clipData.trackIndex;
+            playback.setSourceInPoint(clipData.sourceInPoint || 0);
+            playback.setClipStartOffset(clipData.startSeconds || 0);
+            playback.isMuted = (clipData.isMuted === true || previewRoot.timelineCtrl.isTrackMuted(clipData.hasVideo, trackIdx));
+            playback.loadClip(clipData.clipName, clipData.filePath, clipData.durationSeconds, clipData.hasVideo, clipData.originalFilePath || "");
+
+            playback.seek(currentPos);
+            if (wasPlaying) playback.play();
+
+            previewRoot.isSwappingClip = false;
+        } else if (currentVideoRow === -1 && previewRoot.currentlyLoadedVideoRow !== -1) {
+            // All video tracks are hidden — stop showing video but keep position
+            previewRoot.currentlyLoadedVideoRow = -1;
+            playback.unloadClip();
+        }
+
+        // Update auxiliary audio engines
+        let newAuxRows = previewRoot.currentlyLoadedAuxRows.slice();
+        let wasPlaying = playback.playing;
+
+        for (let j = 0; j < auxAudioRepeater.count; ++j) {
+            let row = j < currentAudioRows.length ? currentAudioRows[j] : -1;
+            let engine = auxAudioRepeater.itemAt(j);
+            if (!engine) continue;
+
+            if (row >= 0 && row !== newAuxRows[j]) {
+                previewRoot.isSwappingClip = true;
+                newAuxRows[j] = row;
+
+                let clipData = previewRoot.timelineCtrl.clipAt(row);
+                let trackIdx = clipData.trackIndex >= 100 ? clipData.trackIndex - 100 : clipData.trackIndex;
+
+                engine.setSourceInPoint(clipData.sourceInPoint || 0);
+                engine.setClipStartOffset(clipData.startSeconds || 0);
+                engine.isMuted = (clipData.isMuted === true || previewRoot.timelineCtrl.isTrackMuted(clipData.hasVideo, trackIdx));
+                engine.loadClip(clipData.clipName, clipData.filePath, clipData.durationSeconds, false, "");
+
+                engine.seek(playback.position);
+                if (wasPlaying) engine.play();
+
+                previewRoot.isSwappingClip = false;
+            } else if (row === -1 && newAuxRows[j] !== -1) {
+                newAuxRows[j] = -1;
+                engine.clear();
+            }
+        }
+        previewRoot.currentlyLoadedAuxRows = newAuxRows;
+    }
+
     Connections {
         target: playback
-        function onPositionChanged() {
-            if (previewRoot.isSwappingClip || !previewRoot.timelineCtrl || previewRoot.timelineCtrl.clipCount === 0)
-                return;
-                
-            let foundRow = -1;
-            // Only auto-swap if we are outside the current clip's range, or if the current clip doesn't match
-            if (previewRoot.currentlyLoadedRow >= 0 && previewRoot.currentlyLoadedRow < previewRoot.timelineCtrl.clipCount) {
-                if (previewRoot.timelineCtrl.clipContains(previewRoot.currentlyLoadedRow, playback.position)) {
-                    return; // Still in the same clip
+        function onPlayingChanged() {
+            for (let i = 0; i < auxAudioRepeater.count; ++i) {
+                let engine = auxAudioRepeater.itemAt(i);
+                if (!engine) continue;
+                if (playback.playing) {
+                    engine.play();
+                } else {
+                    engine.pause();
                 }
             }
+        }
 
-            for (let i = 0; i < previewRoot.timelineCtrl.clipCount; ++i) {
-                if (previewRoot.timelineCtrl.clipContains(i, playback.position)) {
-                    foundRow = i;
-                    break;
+        function onPositionChanged() {
+            // Throttle: only scan clips periodically, not every frame
+            if (!clipScanTimer.running) {
+                clipScanTimer.start();
+            }
+        }
+    }
+
+    Connections {
+        target: previewRoot.timelineCtrl
+        function onTrackStateChanged() {
+            previewRoot.scanClipsAtPosition();
+        }
+        function onTimelineChanged() {
+            if (previewRoot.currentlyLoadedVideoRow >= 0 && previewRoot.currentlyLoadedVideoRow < previewRoot.timelineCtrl.clipCount) {
+                let clipData = previewRoot.timelineCtrl.clipAt(previewRoot.currentlyLoadedVideoRow);
+                if (clipData) {
+                    let trackIdx = clipData.trackIndex >= 100 ? clipData.trackIndex - 100 : clipData.trackIndex;
+                    let shouldBeMuted = (clipData.isMuted === true || previewRoot.timelineCtrl.isTrackMuted(clipData.hasVideo, trackIdx));
+                    if (playback.isMuted !== shouldBeMuted) {
+                        playback.isMuted = shouldBeMuted;
+                    }
                 }
             }
-            
-            if (foundRow >= 0 && foundRow !== previewRoot.currentlyLoadedRow) {
-                previewRoot.isSwappingClip = true;
-                previewRoot.currentlyLoadedRow = foundRow;
-                
-                let clipData = previewRoot.timelineCtrl.clipAt(foundRow);
-                let wasPlaying = playback.playing;
-                let currentPos = playback.position;
-                
-                playback.setSourceInPoint(clipData.sourceInPoint || 0);
-                playback.setClipStartOffset(clipData.startSeconds || 0);
-                playback.loadClip(clipData.clipName, clipData.filePath, clipData.durationSeconds, clipData.hasVideo, clipData.originalFilePath || "");
-                
-                playback.seek(currentPos);
-                if (wasPlaying) {
-                    playback.play();
+            for (let i = 0; i < auxAudioRepeater.count; ++i) {
+                let engine = auxAudioRepeater.itemAt(i);
+                let row = previewRoot.currentlyLoadedAuxRows[i];
+                if (engine && row >= 0 && row < previewRoot.timelineCtrl.clipCount) {
+                    let clipData = previewRoot.timelineCtrl.clipAt(row);
+                    if (clipData) {
+                        let trackIdx = clipData.trackIndex >= 100 ? clipData.trackIndex - 100 : clipData.trackIndex;
+                        let shouldBeMuted = (clipData.isMuted === true || previewRoot.timelineCtrl.isTrackMuted(clipData.hasVideo, trackIdx));
+                        if (engine.isMuted !== shouldBeMuted) {
+                            engine.isMuted = shouldBeMuted;
+                        }
+                    }
                 }
-                
-                previewRoot.isSwappingClip = false;
             }
         }
     }
@@ -196,13 +339,23 @@ Rectangle {
         Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            color: "#0b1115"
+            color: previewRoot.panelBody
 
             PlaybackEngine {
                 id: playback
+                backgroundColor: previewRoot.panelBody
                 anchors.fill: parent
-                anchors.margins: 8
+                anchors.margins: 0
                 visible: previewRoot.hasClip && previewRoot.hasVideo
+            }
+
+            Repeater {
+                id: auxAudioRepeater
+                model: 8
+                PlaybackEngine {
+                    visible: false
+                    sequenceDuration: playback.sequenceDuration
+                }
             }
 
             LiveSubtitleOverlay {
@@ -267,7 +420,7 @@ Rectangle {
                     text: previewRoot.hasClip && !previewRoot.hasVideo
                         ? qsTr("Audio clip selected")
                         : qsTr("Preview will appear here")
-                    color: "#647780"
+                    color: Theme.textMuted
                     font.pixelSize: 13
                     horizontalAlignment: Text.AlignHCenter
                     wrapMode: Text.WordWrap
@@ -300,7 +453,7 @@ Rectangle {
                     }
                     Text {
                         text: "/"
-                        color: "#647780"
+                        color: Theme.textMuted
                         font.pixelSize: 13
                         font.family: "Consolas"
                     }
@@ -386,6 +539,8 @@ Rectangle {
         implicitWidth: transportButton.primary ? 26 : 22
         implicitHeight: transportButton.primary ? 26 : 22
         hoverEnabled: true
+
+        HoverHandler { cursorShape: Qt.PointingHandCursor }
 
         ToolTip.visible: hovered && toolTipText !== ""
         ToolTip.text: toolTipText

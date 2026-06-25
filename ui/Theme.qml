@@ -3,16 +3,18 @@ pragma Singleton
 import QtQuick
 
 QtObject {
-    readonly property color background: "#242423"
-    readonly property color surface: "#242423"
-    readonly property color surfaceRaised: "#2b2b2a"
-    readonly property color surfaceHover: "#30302f"
-    readonly property color surfacePressed: "#363634"
-    readonly property color surfaceInset: "#1b1b1a"
-    readonly property color surfaceDeep: "#111111"
-    readonly property color divider: "#3a3a38"
-    readonly property color dividerSoft: "#30302f"
-    readonly property color text: "#f0f8fa"
-    readonly property color textMuted: "#8fa2aa"
-    readonly property color accent: "#5ec4e8"
+    property bool isDarkMode: true
+
+    property color background: isDarkMode ? "#242423" : "#f5f5f5"
+    property color surface: isDarkMode ? "#242423" : Theme.text
+    property color surfaceRaised: isDarkMode ? "#2b2b2a" : "#f0f0f0"
+    property color surfaceHover: isDarkMode ? "#30302f" : "#e4e4e4"
+    property color surfacePressed: isDarkMode ? "#363634" : "#d8d8d8"
+    property color surfaceInset: isDarkMode ? "#1b1b1a" : "#e8e8e8"
+    property color surfaceDeep: isDarkMode ? "#111111" : "#e0e0e0"
+    property color divider: isDarkMode ? "#3a3a38" : "#cccccc"
+    property color dividerSoft: isDarkMode ? "#30302f" : "#dddddd"
+    property color text: isDarkMode ? "#f0f8fa" : "#222222"
+    property color textMuted: isDarkMode ? "#8fa2aa" : "#666666"
+    property color accent: "#5ec4e8"
 }

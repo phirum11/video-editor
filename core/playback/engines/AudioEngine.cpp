@@ -39,8 +39,6 @@ AudioEngine::~AudioEngine()
 
 bool AudioEngine::start(int sampleRate, int channelCount)
 {
-    stop();
-
     const QAudioDevice device = QMediaDevices::defaultAudioOutput();
     if (device.isNull()) {
         qWarning() << "AudioEngine: no default audio output device";
@@ -74,6 +72,16 @@ bool AudioEngine::start(int sampleRate, int channelCount)
         return false;
     }
 
+    // Optimization: Reuse existing sink if format hasn't changed.
+    // This avoids WASAPI thread exhaustion from rapidly destroying and recreating the sink.
+    if (m_sink && m_format == requestedFormat) {
+        m_sink->reset();
+        m_device = m_sink->start();
+        return m_device != nullptr;
+    }
+
+    stop();
+
     m_format = requestedFormat;
     m_sink = std::make_unique<QAudioSink>(device, m_format, this);
     m_sink->setBufferSize(std::max(4096, bytesPerFrame() * m_format.sampleRate() / 10));
@@ -98,6 +106,14 @@ void AudioEngine::stop()
     m_sink.reset();
 }
 
+void AudioEngine::reset()
+{
+    if (m_sink) {
+        m_sink->reset();
+        m_device = m_sink->start();
+    }
+}
+
 void AudioEngine::pause()
 {
     if (m_sink) {
@@ -111,6 +127,8 @@ void AudioEngine::resume()
         m_sink->resume();
     }
 }
+
+
 
 bool AudioEngine::isActive() const noexcept
 {

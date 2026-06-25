@@ -17,6 +17,7 @@ public:
 
     bool start(int sampleRate, int channelCount = 2);
     void stop();
+    void reset();
     void pause();
     void resume();
 

@@ -93,6 +93,8 @@ Rectangle {
         implicitHeight: 30
         hoverEnabled: true
 
+        HoverHandler { cursorShape: Qt.PointingHandCursor }
+
         ToolTip.visible: hovered && toolTipText !== ""
         ToolTip.text: toolTipText
 
