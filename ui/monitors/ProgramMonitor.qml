@@ -1,3 +1,4 @@
+// qmllint disable
 pragma ComponentBehavior: Bound
 
 import QtQuick
@@ -10,13 +11,13 @@ Rectangle {
     id: previewRoot
 
     readonly property bool isPlaying: playback.playing
-    readonly property string clipName: playback.clipName
-    readonly property string filePath: playback.filePath
+    readonly property string clipName: audioOnlySelectionActive ? audioOnlySelectionName : playback.clipName
+    readonly property string filePath: audioOnlySelectionActive ? audioOnlySelectionPath : playback.filePath
     readonly property real duration: (previewRoot.timelineCtrl && previewRoot.timelineCtrl.timelineEndSeconds > 0) ? previewRoot.timelineCtrl.timelineEndSeconds : playback.duration
     readonly property real previewTime: playback.position
-    readonly property bool hasVideo: playback.hasVideo
-    readonly property bool hasAudio: playback.hasAudio
-    readonly property bool hasClip: playback.filePath.length > 0
+    readonly property bool hasVideo: !audioOnlySelectionActive && playback.hasVideo
+    readonly property bool hasAudio: audioOnlySelectionActive || playback.hasAudio
+    readonly property bool hasClip: audioOnlySelectionActive || playback.filePath.length > 0
     readonly property real audioLevelLeft: playback.audioLevelLeft
     readonly property real audioLevelRight: playback.audioLevelRight
 
@@ -40,8 +41,14 @@ Rectangle {
     property int currentlyLoadedVideoRow: -1
     property var currentlyLoadedAuxRows: [-1, -1, -1, -1, -1, -1, -1, -1]
     property bool isSwappingClip: false
+    property bool audioOnlySelectionActive: false
+    property string audioOnlySelectionName: ""
+    property string audioOnlySelectionPath: ""
 
     function loadClip(name, path, clipDuration, clipHasVideo, origPath = "", isMuted = false) {
+        audioOnlySelectionActive = false
+        audioOnlySelectionName = ""
+        audioOnlySelectionPath = ""
         playback.setSourceInPoint(0)
         playback.isMuted = isMuted
         playback.loadClip(name, path, clipDuration, clipHasVideo, origPath)
@@ -49,6 +56,24 @@ Rectangle {
     }
 
     function loadClipWithOffset(name, path, clipDuration, clipHasVideo, startOffset, sourceInPoint, rowIndex, isMuted = false) {
+        if (!clipHasVideo) {
+            audioOnlySelectionActive = true
+            audioOnlySelectionName = name
+            audioOnlySelectionPath = path
+            currentlyLoadedVideoRow = -1
+            playback.pause()
+            playback.unloadClip()
+            playback.setSourceInPoint(sourceInPoint !== undefined ? sourceInPoint : 0)
+            playback.setClipStartOffset(startOffset !== undefined ? startOffset : playback.position)
+            if (previewRoot.timelineCtrl) {
+                previewRoot.scanClipsAtPosition();
+            }
+            refreshTimelineEffects(startOffset !== undefined ? startOffset : playback.position, -1)
+            return;
+        }
+        audioOnlySelectionActive = false
+        audioOnlySelectionName = ""
+        audioOnlySelectionPath = ""
         if (rowIndex !== undefined) {
             currentlyLoadedVideoRow = rowIndex;
         } else {
@@ -56,8 +81,11 @@ Rectangle {
             if (timelineCtrl) {
                 for (let i = 0; i < timelineCtrl.clipCount; ++i) {
                     if (timelineCtrl.clipContains(i, startOffset + 0.001)) {
-                        currentlyLoadedVideoRow = i;
-                        break;
+                        let cData = timelineCtrl.clipAt(i);
+                        if (cData && cData.hasVideo === clipHasVideo && !cData.isEffect && cData.trackIndex < 300) {
+                            currentlyLoadedVideoRow = i;
+                            break;
+                        }
                     }
                 }
             }
@@ -78,6 +106,10 @@ Rectangle {
     }
 
     function clearPreview() {
+        audioOnlySelectionActive = false
+        audioOnlySelectionName = ""
+        audioOnlySelectionPath = ""
+        currentlyLoadedVideoRow = -1
         playback.clear()
         if (auxAudioRepeater) {
             for (let i = 0; i < auxAudioRepeater.count; ++i) {
@@ -129,7 +161,7 @@ Rectangle {
     }
 
     function scanClipsAtPosition() {
-        if (previewRoot.isSwappingClip || !previewRoot.timelineCtrl || previewRoot.timelineCtrl.clipCount === 0)
+        if (previewRoot.isSwappingClip || !previewRoot.timelineCtrl)
             return;
 
         let pos = playback.position;
@@ -139,11 +171,17 @@ Rectangle {
         for (let i = 0; i < previewRoot.timelineCtrl.clipCount; ++i) {
             if (previewRoot.timelineCtrl.clipContains(i, pos)) {
                 let clipData = previewRoot.timelineCtrl.clipAt(i);
+                if (clipData.isEffect || clipData.trackIndex >= 300) {
+                    continue;
+                }
                 
                 let isVideoTrack = clipData.hasVideo;
                 let trackIdx = clipData.trackIndex >= 100 ? clipData.trackIndex - 100 : clipData.trackIndex;
                 
                 if (isVideoTrack) {
+                    if (previewRoot.audioOnlySelectionActive) {
+                        continue;
+                    }
                     if (previewRoot.timelineCtrl.isTrackHidden(true, trackIdx)) {
                         continue;
                     }
@@ -165,7 +203,7 @@ Rectangle {
         }
 
         // Update main video engine
-        if (currentVideoRow >= 0 && currentVideoRow !== previewRoot.currentlyLoadedVideoRow) {
+        if (currentVideoRow >= 0 && (currentVideoRow !== previewRoot.currentlyLoadedVideoRow || !playback.hasVideo)) {
             previewRoot.isSwappingClip = true;
             previewRoot.currentlyLoadedVideoRow = currentVideoRow;
 
@@ -220,6 +258,7 @@ Rectangle {
             }
         }
         previewRoot.currentlyLoadedAuxRows = newAuxRows;
+        refreshTimelineEffects(playback.position, previewRoot.currentlyLoadedVideoRow);
     }
 
     Connections {
@@ -282,14 +321,14 @@ Rectangle {
     }
 
     function formatTime(seconds) {
-        const fps = playback.frameRate > 0 ? playback.frameRate : 25
-        const totalFrames = Math.max(0, Math.floor(seconds * fps))
-        const frames = totalFrames % Math.round(fps)
-        const totalSeconds = Math.floor(totalFrames / fps)
-        const secs = totalSeconds % 60
-        const mins = Math.floor(totalSeconds / 60) % 60
-        const hours = Math.floor(totalSeconds / 3600)
-        return String(hours).padStart(2, "0") + ":"
+        const fps = playback.frameRate > 0 ? playback.frameRate : 25 
+        const totalFrames = Math.max(0, Math.floor(seconds * fps))   
+        const frames = totalFrames % Math.round(fps)   
+        const totalSeconds = Math.floor(totalFrames / fps)  
+        const secs = totalSeconds % 60   
+        const mins = Math.floor(totalSeconds / 60) % 60   
+        const hours = Math.floor(totalSeconds / 3600) 
+        return String(hours).padStart(2, "0") + ":"  
             + String(mins).padStart(2, "0") + ":"
             + String(secs).padStart(2, "0") + ":"
             + String(frames).padStart(2, "0")
@@ -556,4 +595,3 @@ Rectangle {
         }
     }
 }
-

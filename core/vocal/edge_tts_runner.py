@@ -125,9 +125,9 @@ def time_stretch_audio(input_path, output_path, target_duration, ffmpeg_path="ff
 
     ratio = actual_duration / target_duration
 
-    # Cap the maximum speedup to 1.50x as requested by the user
-    if ratio > 1.50:
-        ratio = 1.50
+    # Cap the maximum speedup to 1.25x as requested by the user
+    if ratio > 1.25:
+        ratio = 1.25
         target_duration = actual_duration / ratio
 
     # Skip if ratio is too extreme (quality would be terrible)
@@ -193,7 +193,7 @@ async def generate_voice(srt_file, language, output_dir, ffmpeg_path="ffmpeg"):
 
         for attempt in range(max_retries):
             try:
-                communicate = edge_tts.Communicate(entry["text"], voice, rate="+50%")
+                communicate = edge_tts.Communicate(entry["text"], voice, rate="+25%")
                 await communicate.save(out_file)
 
                 if os.path.exists(out_file) and os.path.getsize(out_file) > 0:
@@ -234,19 +234,17 @@ async def generate_voice(srt_file, language, output_dir, ffmpeg_path="ffmpeg"):
             "path": out_file,
             "start": entry["start"],
             "duration": final_duration
-        }
-        metadata.append(metadata_item)
-
+        }   
+        metadata.append(metadata_item)   
+     
         progress = int(((i + 1) / len(entries)) * 100)
         sys.stderr.write(f"{progress}%\n")
         sys.stderr.flush()
         
         sys.stdout.write(json.dumps(metadata_item) + "\n")
         sys.stdout.flush()
-
     with open(os.path.join(output_dir, "metadata.json"), 'w', encoding='utf-8') as f:
         json.dump(metadata, f, indent=4)
-
 
 def main():
     parser = argparse.ArgumentParser()

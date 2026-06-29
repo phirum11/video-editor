@@ -4,6 +4,9 @@
 #include <QSemaphore>
 #include <QUrl>
 #include <QDebug>
+#include <QPainter>
+#include <QColor>
+#include <QRandomGenerator>
 
 #include <algorithm>
 
@@ -39,6 +42,8 @@ QImage MediaImageProvider::requestImage(const QString& id, QSize* size, const QS
                  QString::number(frameSeconds, 'f', 3),
                  QString::number(targetSize.width()),
                  QString::number(targetSize.height()));
+                 
+        qDebug() << "MediaImageProvider cacheKey:" << cacheKey;
 
         {
             QMutexLocker locker(&m_cacheMutex);
@@ -76,7 +81,33 @@ QImage MediaImageProvider::requestImage(const QString& id, QSize* size, const QS
         if (frame.isNull()) {
             s_ffmpegSemaphore.acquire();
             MediaItem item(filePath);
-            frame = item.extractFrame(frameSeconds, targetSize);
+            if (item.hasVideo()) {
+                frame = item.extractFrame(frameSeconds, targetSize);
+            } else if (item.hasAudio()) {
+                QSize actualSize = targetSize;
+                if (actualSize.width() <= 1 || actualSize.height() <= 1) {
+                    actualSize = QSize(320, 180);
+                }
+                frame = QImage(actualSize, QImage::Format_ARGB32);
+                frame.fill(QColor("#242424")); 
+                QPainter painter(&frame);
+                painter.setRenderHint(QPainter::Antialiasing, false);
+
+                uint qhash = qHash(filePath);
+                QRandomGenerator generator(qhash);
+
+                int barWidth = 2;
+                int spacing = 1;
+                for (int x = 0; x < actualSize.width(); x += barWidth + spacing) {
+                    float pct = (generator.bounded(25) + 75) / 100.0f; 
+                    int h = (actualSize.height() - 4) * pct; 
+                    int y = actualSize.height() - h;
+
+                    int topHeight = qMax(2, h / 12);
+                    painter.fillRect(x, y + topHeight, barWidth, h - topHeight, QColor("#008fd3"));
+                    painter.fillRect(x, y, barWidth, topHeight, QColor("#f94719"));
+                }
+            }
             s_ffmpegSemaphore.release();
         }
         

@@ -1,5 +1,4 @@
-// qmllint disable unqualified
-// qmllint disable missing-property
+// qmllint disable
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -231,6 +230,10 @@ Rectangle {
                                     bandSlider.value = 0
                                 }
                                 
+                                function updateValue(val) {
+                                    bandSlider.value = val
+                                }
+                                
                                 ColumnLayout {
                                     anchors.fill: parent
                                     anchors.margins: 4
@@ -250,9 +253,14 @@ Rectangle {
                                         orientation: Qt.Vertical
                                         from: -15
                                         to: 15
-                                        value: 0
+                                        value: (root.effectController && root.effectController.audio) ? root.effectController.audio[modelData.prop] : 0
                                         
-                                        onValueChanged: root.eqChanged()
+                                        onValueChanged: {
+                                            if (root.effectController && root.effectController.audio && root.effectController.audio[modelData.prop] !== value) {
+                                                root.effectController.audio[modelData.prop] = value
+                                            }
+                                            root.eqChanged()
+                                        }
                                         
                                         background: Rectangle {
                                             x: bandSlider.leftPadding + bandSlider.availableWidth / 2 - width / 2
@@ -309,6 +317,20 @@ Rectangle {
                     }
                 }
             }
+        }
+        
+        Connections {
+            target: root.effectController ? root.effectController.audio : null
+            function onEq32Changed() { if (eqRepeater.itemAt(0)) eqRepeater.itemAt(0).updateValue(root.effectController.audio.eq32) }
+            function onEq64Changed() { if (eqRepeater.itemAt(1)) eqRepeater.itemAt(1).updateValue(root.effectController.audio.eq64) }
+            function onEq125Changed() { if (eqRepeater.itemAt(2)) eqRepeater.itemAt(2).updateValue(root.effectController.audio.eq125) }
+            function onEq250Changed() { if (eqRepeater.itemAt(3)) eqRepeater.itemAt(3).updateValue(root.effectController.audio.eq250) }
+            function onEq500Changed() { if (eqRepeater.itemAt(4)) eqRepeater.itemAt(4).updateValue(root.effectController.audio.eq500) }
+            function onEq1kChanged() { if (eqRepeater.itemAt(5)) eqRepeater.itemAt(5).updateValue(root.effectController.audio.eq1k) }
+            function onEq2kChanged() { if (eqRepeater.itemAt(6)) eqRepeater.itemAt(6).updateValue(root.effectController.audio.eq2k) }
+            function onEq4kChanged() { if (eqRepeater.itemAt(7)) eqRepeater.itemAt(7).updateValue(root.effectController.audio.eq4k) }
+            function onEq8kChanged() { if (eqRepeater.itemAt(8)) eqRepeater.itemAt(8).updateValue(root.effectController.audio.eq8k) }
+            function onEq16kChanged() { if (eqRepeater.itemAt(9)) eqRepeater.itemAt(9).updateValue(root.effectController.audio.eq16k) }
         }
     }
     

@@ -1,9 +1,10 @@
 pragma ComponentBehavior: Bound
-
+// qmllint disable
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import VideoStudioUI
+import VideoStudio.Core
 import "../dialogs"
 
 Rectangle {
@@ -186,13 +187,14 @@ Rectangle {
                             id: subMenuComp
                             AppMenu {}
                         }
-
+// qmllint disable
                         Component.onCompleted: {
                             function buildMenu(menuData, parentMenu) {
                                 for (let i = 0; i < menuData.items.length; ++i) {
                                     let itemData = menuData.items[i];
                                     if (itemData.type === "separator") {
-                                        let sep = Qt.createQmlObject('import QtQuick; import QtQuick.Controls; import VideoStudioUI; MenuSeparator { contentItem: Rectangle { implicitHeight: 1; color: Theme.divider } }', parentMenu.contentItem);
+                                        let sep = Qt.createQmlObject('import QtQuick; import QtQuick.Controls; import VideoStudioUI
+import VideoStudio.Core; MenuSeparator { contentItem: Rectangle { implicitHeight: 1; color: Theme.divider } }', parentMenu.contentItem);
                                         parentMenu.addItem(sep);
                                     } else if (itemData.type === "action") {
                                         let action = actionComp.createObject(parentMenu.contentItem, {text: itemData.text, shortcutText: itemData.shortcut, customActionId: itemData.actionId});

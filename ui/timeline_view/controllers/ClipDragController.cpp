@@ -5,9 +5,18 @@ ClipDragController::ClipDragController(QObject *parent)
 {
 }
 
-void ClipDragController::beginDrag(TimelineController* timeline)
+void ClipDragController::beginDrag(TimelineController* timeline, double startX, double startY)
 {
     m_dragStates.clear();
+    m_ghostX = startX;
+    m_ghostY = startY;
+    m_dragDeltaSeconds = 0.0;
+    m_dragDeltaTrack = 0;
+    emit ghostXChanged();
+    emit ghostYChanged();
+    emit dragDeltaSecondsChanged();
+    emit dragDeltaTrackChanged();
+
     if (!timeline || !timeline->clipModel()) return;
 
     auto* model = static_cast<TimelineClipModel*>(timeline->clipModel());
@@ -31,8 +40,25 @@ void ClipDragController::beginDrag(TimelineController* timeline)
     }
 }
 
-void ClipDragController::updateDrag(TimelineController* timeline, double deltaSeconds, int deltaTrack)
+void ClipDragController::updateDrag(TimelineController* timeline, double deltaSeconds, int deltaTrack, double curX, double curY)
 {
+    if (m_ghostX != curX) {
+        m_ghostX = curX;
+        emit ghostXChanged();
+    }
+    if (m_ghostY != curY) {
+        m_ghostY = curY;
+        emit ghostYChanged();
+    }
+    if (m_dragDeltaSeconds != deltaSeconds) {
+        m_dragDeltaSeconds = deltaSeconds;
+        emit dragDeltaSecondsChanged();
+    }
+    if (m_dragDeltaTrack != deltaTrack) {
+        m_dragDeltaTrack = deltaTrack;
+        emit dragDeltaTrackChanged();
+    }
+
     if (!timeline || !timeline->clipModel() || m_dragStates.isEmpty()) return;
 
     auto* model = static_cast<TimelineClipModel*>(timeline->clipModel());
@@ -53,7 +79,7 @@ void ClipDragController::endDrag(TimelineController* timeline, double deltaSecon
 
     auto* model = static_cast<TimelineClipModel*>(timeline->clipModel());
     
-    // 1. Temporarily revert to original state
+    // 1. Temporarily revert to original state so moveSelectedClips computes the correct delta
     for (const DragState& state : m_dragStates) {
         if (state.row >= 0 && state.row < model->rowCount()) {
             TimelineClip clip = model->clipAt(state.row);
@@ -70,5 +96,9 @@ void ClipDragController::endDrag(TimelineController* timeline, double deltaSecon
     timeline->moveSelectedClips(deltaSeconds, deltaTrack, linked);
 
     m_isDragging = false;
+    m_dragDeltaSeconds = 0.0;
+    m_dragDeltaTrack = 0;
     emit isDraggingChanged();
+    emit dragDeltaSecondsChanged();
+    emit dragDeltaTrackChanged();
 }

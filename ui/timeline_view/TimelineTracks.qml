@@ -1,9 +1,10 @@
 pragma ComponentBehavior: Bound
-
+ // qmllint disable
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
 import VideoStudioUI
+import VideoStudio.Core
 import "components"
 
 import "../settings"
@@ -11,8 +12,9 @@ import "../settings"
 Rectangle {
     id: tracksRoot
 
-    readonly property int trackHeaderWidth: 114
+    readonly property int trackHeaderWidth: 170
     readonly property int trackHeight: 72
+    readonly property int subtitleTrackHeight: 32
     readonly property int markerHeight: 36
     readonly property int separatorHeight: 0
     readonly property int minClipWidth: 140
@@ -39,8 +41,10 @@ Rectangle {
     property string previewFilePath: ""
     property real timelineEndSeconds: backend.timelineEndSeconds
 
-    readonly property real contentHeight: (backend.videoTrackCount + backend.audioTrackCount) * trackHeight + separatorHeight + markerHeight
+    readonly property int effectiveVideoTrackCount: timelineViewport.dynamicVideoTrackCount
+    readonly property real contentHeight: (backend.hasSubtitleTrack ? subtitleTrackHeight : 0) + backend.effectTrackCount * subtitleTrackHeight + (effectiveVideoTrackCount + backend.audioTrackCount) * trackHeight + separatorHeight + markerHeight
     readonly property real maxVScroll: Math.max(0, contentHeight - timelineViewport.height)
+    readonly property real centerYOffset: Math.max(0, timelineViewport.height / 2 - ((backend.hasSubtitleTrack ? subtitleTrackHeight : 0) + backend.effectTrackCount * subtitleTrackHeight + (effectiveVideoTrackCount - 0.5) * trackHeight))
 
     readonly property real visiblePosition: scrubbing ? scrubPosition : timelinePosition
     readonly property real timelineSpanSeconds: Math.max(sequenceDuration, timelineEndSeconds, visiblePosition)
@@ -75,6 +79,10 @@ Rectangle {
 
     ClipTrimController {
         id: trimController
+    }
+
+    ClipDragController {
+        id: dragController
     }
 
     function clampScroll() {
@@ -175,7 +183,7 @@ Rectangle {
         const doScroll = autoScroll !== undefined ? autoScroll : true
         const safeDuration = Math.max(duration, 1)
         const safeStart = startSeconds >= 0 ? startSeconds : backend.timelineEndSeconds
-        const safeTrack = trackIndex >= 0 ? trackIndex : (hasVideo ? 2 : 3)
+        const safeTrack = trackIndex >= 0 ? trackIndex : (hasVideo ? 0 : 100)
         const selectedRow = backend.addMediaAsset(
             name,
             filePath,
@@ -253,11 +261,21 @@ Rectangle {
         seekDebounce.restart()
     }
 
+    function queueTrimPreviewSeek(seconds) {
+        scrubPosition = Math.max(0, Math.min(seconds, timelineEndSeconds))
+        scrubbing = true
+        timelinePosition = scrubPosition
+        if (!trimSeekDebounce.running) {
+            trimSeekDebounce.start()
+        }
+    }
+
     function commitSeek(seconds) {
         scrubPosition = Math.max(0, Math.min(seconds, timelineEndSeconds))
         timelinePosition = scrubPosition
         scrubbing = false
         seekDebounce.stop()
+        trimSeekDebounce.stop()
         seekRequested(scrubPosition)
         keepPlayheadVisible()
     }
@@ -284,6 +302,13 @@ Rectangle {
     Timer {
         id: seekDebounce
         interval: 80
+        repeat: false
+        onTriggered: tracksRoot.seekRequested(tracksRoot.scrubPosition)
+    }
+
+    Timer {
+        id: trimSeekDebounce
+        interval: 32
         repeat: false
         onTriggered: tracksRoot.seekRequested(tracksRoot.scrubPosition)
     }
@@ -316,6 +341,7 @@ Rectangle {
             activeTool: tracksRoot.activeTool
             snapEnabled: tracksRoot.snapEnabled
             zoomValue: tracksRoot.zoomValue
+            timelineController: tracksRoot.timelineController
             
             property int activeClipIndex: backend.selectedClipIndices.length > 0 ? backend.selectedClipIndices[0] : tracksRoot.clipIndexUnderPlayhead()
 
@@ -366,7 +392,7 @@ Rectangle {
                 }
             }
         }
-
+ // qmllint disable
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -376,8 +402,9 @@ Rectangle {
                 id: trackHeaders
                 Layout.preferredWidth: tracksRoot.trackHeaderWidth
                 Layout.fillHeight: true
-                vScrollOffset: tracksRoot.vScrollOffset
+                vScrollOffset: tracksRoot.vScrollOffset - tracksRoot.centerYOffset
                 trackHeight: tracksRoot.trackHeight
+                subtitleTrackHeight: tracksRoot.subtitleTrackHeight
                 markerHeight: tracksRoot.markerHeight
                 timecode: tracksRoot.formatTime(tracksRoot.visiblePosition)
                 durationTimecode: tracksRoot.formatTime(backend.timelineEndSeconds)
@@ -385,6 +412,7 @@ Rectangle {
                 linkedSelection: tracksRoot.linkedSelection
                 hasTimelineClips: backend.clipCount > 0
                 timelineController: tracksRoot.timelineController
+                videoTrackCount: tracksRoot.effectiveVideoTrackCount
                 panelLine: tracksRoot.panelLine
                 textPrimary: tracksRoot.textPrimary
                 accent: tracksRoot.accent
@@ -426,15 +454,17 @@ Rectangle {
                     TimelineCanvas {
                         id: timelineViewport
                         anchors.fill: parent
-                        vScrollOffset: tracksRoot.vScrollOffset
+                        vScrollOffset: tracksRoot.vScrollOffset - tracksRoot.centerYOffset
                         clipModel: backend.clipModel
                         selectedClipIndices: backend.selectedClipIndices
                         timelineBackend: backend
+                        dragController: dragController
                         pixelsPerSecond: tracksRoot.pixelsPerSecond
                         scrollOffset: tracksRoot.scrollOffset
                         contentWidth: tracksRoot.contentWidth
                         playheadSeconds: tracksRoot.visiblePosition
                         trackHeight: tracksRoot.trackHeight
+                        subtitleTrackHeight: tracksRoot.subtitleTrackHeight
                         markerHeight: tracksRoot.markerHeight
                         separatorHeight: tracksRoot.separatorHeight
                         minClipWidth: tracksRoot.minClipWidth
@@ -466,6 +496,7 @@ Rectangle {
                             trimController.trimClipRight(backend, index, deltaSeconds)
                         }
                         onSeekPreview: function(seconds) { tracksRoot.queueSeek(seconds) }
+                        onTrimSeekPreview: function(seconds) { tracksRoot.queueTrimPreviewSeek(seconds) }
                         onSeekCommitted: function(seconds) { tracksRoot.commitSeek(seconds) }
                         onPanRequested: function(deltaPixels) { tracksRoot.setScrollOffset(tracksRoot.scrollOffset + deltaPixels) }
                         onZoomRequested: function(anchorX, direction) {

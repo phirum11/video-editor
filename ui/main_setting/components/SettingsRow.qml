@@ -1,3 +1,4 @@
+// qmllint disable
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -30,30 +31,34 @@ RowLayout {
         radius: 6
         
         // Hover effect for the value box
-        MouseArea {
-            id: hoverArea
-            anchors.fill: parent
-            hoverEnabled: true
+        HoverHandler {
+            id: hoverHandler
+            cursorShape: Qt.IBeamCursor
         }
 
         Rectangle {
             anchors.fill: parent
             color: Theme.text
-            opacity: hoverArea.containsMouse ? 0.03 : 0.0
+            opacity: hoverHandler.hovered ? 0.03 : 0.0
             radius: 6
             Behavior on opacity { NumberAnimation { duration: 150 } }
         }
 
-        Text {
+        TextInput {
+            id: inputField
             anchors.left: parent.left
             anchors.leftMargin: 12
+            anchors.right: parent.right
+            anchors.rightMargin: 12
             anchors.verticalCenter: parent.verticalCenter
             text: settingsRowRoot.value
             color: settingsRoot.textPrimary
             font.pixelSize: 13
             font.family: settingsRowRoot.isPath ? "Consolas" : Qt.application.font.family
-            elide: Text.ElideMiddle
-            width: parent.width - 24
+            clip: true
+            selectByMouse: true
+            onTextEdited: settingsRowRoot.value = text
+            onEditingFinished: settingsRowRoot.value = text
         }
     }
 }

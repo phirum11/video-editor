@@ -12,7 +12,7 @@
 #include <cmath>
 
 #include <QDebug>
-
+#include <QElapsedTimer>
 #include "core/actions/managers/ActionManager.h"
 #include "core/timeline/commands/TimelineCommands.h"
 #include "core/timeline/controllers/TimelineAutoEditor.h"
@@ -40,7 +40,7 @@ struct AutoRippleGuard {
   }
   ~AutoRippleGuard() {
     if (!wasRippling) {
-      c->autoRippleTrack(c->videoTrackCount() - 1);
+      c->autoRippleTrack(0);
       c->undoStack()->endMacro();
       c->m_isAutoRippling = false;
     }
@@ -52,14 +52,16 @@ TimelineController::TimelineController(QObject *parent)
       m_undoStack(new QUndoStack(this)),
       m_vocalIsolator(new VocalIsolator(this)),
       m_aiVoiceGenerator(new AIVoiceGenerator(this)) {
-  connect(m_clipModel, &QAbstractItemModel::rowsInserted, this,
-          &TimelineController::timelineChanged);
-  connect(m_clipModel, &QAbstractItemModel::rowsRemoved, this,
-          &TimelineController::timelineChanged);
-  connect(m_clipModel, &QAbstractItemModel::dataChanged, this,
-          &TimelineController::timelineChanged);
-  connect(m_clipModel, &QAbstractItemModel::modelReset, this,
-          &TimelineController::timelineChanged);
+          
+  m_updateTimer = new QTimer(this);
+  m_updateTimer->setSingleShot(true);
+  m_updateTimer->setInterval(0);
+  connect(m_updateTimer, &QTimer::timeout, this, &TimelineController::timelineChanged);
+
+  connect(m_clipModel, &QAbstractItemModel::rowsInserted, m_updateTimer, static_cast<void(QTimer::*)()>(&QTimer::start));
+  connect(m_clipModel, &QAbstractItemModel::rowsRemoved, m_updateTimer, static_cast<void(QTimer::*)()>(&QTimer::start));
+  connect(m_clipModel, &QAbstractItemModel::dataChanged, m_updateTimer, static_cast<void(QTimer::*)()>(&QTimer::start));
+  connect(m_clipModel, &QAbstractItemModel::modelReset, m_updateTimer, static_cast<void(QTimer::*)()>(&QTimer::start));
 
   connect(this, &TimelineController::timelineChanged, this,
           &TimelineController::calculateTrackCounts);
@@ -141,18 +143,6 @@ TimelineController::TimelineController(QObject *parent)
               return;
             }
 
-            m_undoStack->beginMacro("Auto-mute original audio");
-
-            // Auto-mute original video clips so the AI voice replaces the
-            // original sound
-            for (int i = 0; i < m_clipModel->rowCount(); ++i) {
-              TimelineClip clip = m_clipModel->clipAt(i);
-              if (clip.hasVideo && clip.hasAudio && !clip.isMuted) {
-                m_clipModel->setClipMuted(i, true);
-              }
-            }
-
-            m_undoStack->endMacro();
           });
 }
 
@@ -212,12 +202,59 @@ void TimelineController::setSelectedClipIndices(const QVariantList &indices) {
 
 int TimelineController::clipCount() const { return m_clipModel->rowCount(); }
 
+bool TimelineController::hasSubtitleTrack() const {
+  if (!m_clipModel) return false;
+  for (int i = 0; i < m_clipModel->rowCount(); ++i) {
+    TimelineClip clip = m_clipModel->clipAt(i);
+    if (!clip.isEffect && (clip.filePath.endsWith(".srt", Qt::CaseInsensitive) || (!clip.hasVideo && !clip.hasAudio))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool TimelineController::hasEffectTrack() const {
+  if (!m_clipModel) return false;
+  for (int i = 0; i < m_clipModel->rowCount(); ++i) {
+    TimelineClip clip = m_clipModel->clipAt(i);
+    if (clip.isEffect) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool TimelineController::isTrackOccupied(int trackIndex, double startSeconds, double durationSeconds, int ignoreRow) const {
+  if (!m_clipModel) return false;
+  double endSeconds = startSeconds + durationSeconds;
+  const double eps = 0.001;
+  for (int i = 0; i < m_clipModel->rowCount(); ++i) {
+    if (i == ignoreRow) continue;
+    TimelineClip clip = m_clipModel->clipAt(i);
+    if (clip.trackIndex == trackIndex) {
+      double clipEnd = clip.startSeconds + clip.durationSeconds;
+      if (startSeconds + eps < clipEnd && endSeconds - eps > clip.startSeconds) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+int TimelineController::findAvailableTrack(int baseTrackIndex, double startSeconds, double durationSeconds, int ignoreRow) const {
+  int currentTrack = baseTrackIndex;
+  while (isTrackOccupied(currentTrack, startSeconds, durationSeconds, ignoreRow)) {
+    currentTrack++;
+  }
+  return currentTrack;
+}
+
 int TimelineController::addClip(const QString &clipName,
                                 const QString &filePath, double durationSeconds,
                                 bool hasVideo, double startSeconds,
-                                int trackIndex) {
+                                int trackIndex, bool allowOverlap) {
   AutoRippleGuard rippleGuard(this);
-  int targetTrack = trackIndex >= 0 ? trackIndex : (hasVideo ? 2 : 3);
+  int targetTrack = trackIndex >= 0 ? trackIndex : (hasVideo ? 0 : 100);
   targetTrack = std::max(0, targetTrack);
 
   if (hasVideo && isTrackLocked(true, targetTrack))
@@ -236,6 +273,11 @@ int TimelineController::addClip(const QString &clipName,
   clip.startSeconds = std::isfinite(startSeconds) && startSeconds >= 0.0
                           ? startSeconds
                           : m_clipModel->endTimeSeconds();
+                          
+  if (!allowOverlap) {
+      targetTrack = findAvailableTrack(targetTrack, clip.startSeconds, clip.durationSeconds);
+  }
+
   clip.trackIndex = targetTrack;
   clip.hasVideo = hasVideo;
   clip.sourceInPoint = 0.0;
@@ -252,7 +294,7 @@ int TimelineController::addMediaAsset(const QString &clipName,
                                       const QString &filePath,
                                       double durationSeconds, bool hasVideo,
                                       bool hasAudio, double startSeconds,
-                                      int videoTrackIndex) {
+                                      int videoTrackIndex, bool allowOverlap) {
   AutoRippleGuard rippleGuard(this);
   const QString linkGroup = QStringLiteral("clip_%1").arg(m_nextLinkGroupId++);
   const double safeDuration =
@@ -262,7 +304,7 @@ int TimelineController::addMediaAsset(const QString &clipName,
                                ? startSeconds
                                : m_clipModel->endTimeSeconds();
 
-  int vTrack = std::max(0, videoTrackIndex >= 0 ? videoTrackIndex : 2);
+  int vTrack = std::max(0, videoTrackIndex >= 0 ? videoTrackIndex : 0);
   int aTrack = videoTrackIndex >= 100 ? videoTrackIndex
                                       : 100; // Will be mapped to audio 0
 
@@ -286,6 +328,9 @@ int TimelineController::addMediaAsset(const QString &clipName,
     videoClip.linkGroupId = linkGroup;
     videoClip.startSeconds = safeStart;
     videoClip.durationSeconds = safeDuration;
+    if (!allowOverlap) {
+        vTrack = findAvailableTrack(vTrack, safeStart, safeDuration);
+    }
     videoClip.trackIndex = vTrack;
     videoClip.hasVideo = true;
     videoClip.hasAudio = hasAudio;
@@ -304,6 +349,9 @@ int TimelineController::addMediaAsset(const QString &clipName,
     clip.linkGroupId = linkGroup;
     clip.startSeconds = safeStart;
     clip.durationSeconds = safeDuration;
+    if (!allowOverlap) {
+        aTrack = findAvailableTrack(aTrack, safeStart, safeDuration);
+    }
     clip.trackIndex = aTrack;
     clip.hasVideo = false;
     clip.hasAudio = true;
@@ -331,7 +379,7 @@ int TimelineController::addSubtitleClip(const QString &text,
                                         const QString &srtFilePath,
                                         double startSeconds,
                                         double durationSeconds,
-                                        int trackIndex) {
+                                        int trackIndex, bool allowOverlap) {
   AutoRippleGuard rippleGuard(this);
   int vTrack = std::clamp(trackIndex, 0, 5);
   if (isTrackLocked(true, vTrack))
@@ -343,6 +391,9 @@ int TimelineController::addSubtitleClip(const QString &text,
   clip.linkGroupId = QStringLiteral("sub_%1").arg(m_nextLinkGroupId++);
   clip.startSeconds = std::max(0.0, startSeconds);
   clip.durationSeconds = std::max(0.1, durationSeconds);
+  if (!allowOverlap) {
+      vTrack = findAvailableTrack(vTrack, clip.startSeconds, clip.durationSeconds);
+  }
   clip.trackIndex = vTrack;
   clip.hasVideo = false;
   clip.hasAudio = false;
@@ -438,12 +489,18 @@ int TimelineController::removeClipsByFilePath(const QString &filePath) {
 }
 
 bool TimelineController::moveClip(int row, double startSeconds, int trackIndex,
-                                  bool linked) {
+                                  bool linked, bool allowOverlap) {
+  QElapsedTimer timer;
+  timer.start();
+  QElapsedTimer t2;
+  t2.start();
+
   AutoRippleGuard rippleGuard(this);
   if (row < 0 || row >= m_clipModel->rowCount())
     return false;
 
   TimelineClip clip = m_clipModel->clipAt(row);
+  
   bool isAudioTrack = clip.trackIndex >= 100;
   int srcLogicalIndex = isAudioTrack ? clip.trackIndex - 100 : clip.trackIndex;
   int destLogicalIndex = isAudioTrack ? trackIndex - 100 : trackIndex;
@@ -453,47 +510,31 @@ bool TimelineController::moveClip(int row, double startSeconds, int trackIndex,
   if (isTrackLocked(!isAudioTrack, destLogicalIndex))
     return false;
 
+  qDebug().nospace() << "[PERF_DEBUG] pre-push: " << t2.elapsed();
+  t2.start();
+
   m_undoStack->push(
       new MoveClipCommand(m_clipModel, row, startSeconds, trackIndex, linked));
+
+  qDebug().nospace() << "[PERF_DEBUG] push: " << t2.elapsed();
+  t2.start();
 
   // Keep it selected if not already in selection
   if (!m_selectedClipIndices.contains(row)) {
     setSelectedClipIndices({row});
   }
+
+  qDebug().nospace() << "[PERF] {\"action\": \"move_clip\", \"duration_ms\": " << timer.elapsed() << "}";
+
   return true;
 }
 
 bool TimelineController::moveSelectedClips(double deltaSeconds,
-                                           int deltaTrackIndex, bool linked) {
+                                           int deltaTrackIndex, bool linked, bool allowOverlap) {
   AutoRippleGuard rippleGuard(this);
   if (m_selectedClipIndices.isEmpty())
     return false;
-  // Backbone constraint: Prevent leaving the main track empty
-  int mainTrackIndex = m_videoTrackCount - 1;
-  int mainTrackClipsBefore = 0;
-  for (int i = 0; i < m_clipModel->rowCount(); ++i) {
-    if (m_clipModel->clipAt(i).trackIndex == mainTrackIndex) {
-      mainTrackClipsBefore++;
-    }
-  }
-
-  int mainTrackClipsAfter = 0;
-  for (int i = 0; i < m_clipModel->rowCount(); ++i) {
-    int expectedTrack = m_clipModel->clipAt(i).trackIndex;
-    if (m_selectedClipIndices.contains(i)) {
-      bool isAudioTrack = m_clipModel->clipAt(i).trackIndex >= 100;
-      if (!isAudioTrack) {
-        expectedTrack = std::max(0, expectedTrack + deltaTrackIndex);
-      }
-    }
-    if (expectedTrack == mainTrackIndex) {
-      mainTrackClipsAfter++;
-    }
-  }
-
-  if (mainTrackClipsBefore > 0 && mainTrackClipsAfter == 0) {
-    deltaTrackIndex = 0; // Force them to stay on the main track vertically
-  }
+  // Removed Backbone constraint: allow leaving the main track empty so clips can be moved to upper tracks
 
   m_undoStack->beginMacro("Move Clips");
 
@@ -516,7 +557,7 @@ bool TimelineController::moveSelectedClips(double deltaSeconds,
     int currentTrack = m_clipModel->clipAt(idx).trackIndex;
 
     moveClip(idx, currentStart + deltaSeconds, currentTrack + deltaTrackIndex,
-             linked);
+             linked, allowOverlap);
   }
   m_undoStack->endMacro();
 
@@ -754,6 +795,9 @@ QList<double> TimelineController::getSnapPoints() const {
   points.append(static_cast<double>(m_playheadPosition) / 1000.0);
 
   for (int i = 0; i < m_clipModel->rowCount(); ++i) {
+    if (m_selectedClipIndices.contains(i))
+      continue; // Do not snap to clips currently being dragged
+
     double start = clipStartSeconds(i);
     double end = clipEndSeconds(i);
     if (start >= 0.0)
@@ -808,25 +852,36 @@ bool TimelineController::isTrackEmpty(bool isVideo, int trackIndex) const {
 }
 
 void TimelineController::calculateTrackCounts() {
+  if (m_clipModel) {
+      m_clipModel->compactTracks();
+  }
+
   int maxVideo = -1;
   int maxAudio = -1;
+  int maxEffect = -1;
 
   for (int i = 0; i < m_clipModel->rowCount(); ++i) {
     TimelineClip clip = m_clipModel->clipAt(i);
-    if (clip.hasVideo) {
+    if (clip.isEffect) {
+      maxEffect = std::max(maxEffect, clip.trackIndex - 300);
+    } else if (clip.hasVideo) {
       maxVideo = std::max(maxVideo, clip.trackIndex);
-    } else {
+    } else if (clip.hasAudio) {
       maxAudio = std::max(maxAudio, clip.trackIndex - 100);
     }
   }
 
-  int newVideoCount = 3;
-  int newAudioCount = 3;
+  int newVideoCount = 1;
+  int newAudioCount = 1;
+  int newEffectCount = 0;
   if (maxVideo >= 0) {
-      newVideoCount = std::max(m_videoTrackCount, maxVideo + 1);
+      newVideoCount = std::max(1, maxVideo + 1);
   }
   if (maxAudio >= 0) {
-      newAudioCount = std::max(m_audioTrackCount, maxAudio + 1);
+      newAudioCount = std::max(1, maxAudio + 1);
+  }
+  if (maxEffect >= 0) {
+      newEffectCount = maxEffect + 1;
   }
 
   bool changed = false;
@@ -836,6 +891,10 @@ void TimelineController::calculateTrackCounts() {
   }
   if (newAudioCount != m_audioTrackCount) {
     m_audioTrackCount = newAudioCount;
+    changed = true;
+  }
+  if (newEffectCount != m_effectTrackCount) {
+    m_effectTrackCount = newEffectCount;
     changed = true;
   }
 
@@ -911,7 +970,8 @@ int TimelineController::addEffectClip(const QString &name,
                                       double startSeconds,
                                       double durationSeconds, int trackIndex) {
   AutoRippleGuard rippleGuard(this);
-  int targetTrack = trackIndex >= 0 ? trackIndex : 100;
+  int targetTrack = trackIndex >= 300 ? trackIndex : 300;
+  targetTrack = findAvailableTrack(targetTrack, startSeconds, durationSeconds);
 
   TimelineClip clip;
   clip.clipName = name;

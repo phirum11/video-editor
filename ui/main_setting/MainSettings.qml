@@ -1,3 +1,4 @@
+// qmllint disable
 pragma ComponentBehavior: Bound
 
 import QtQuick
@@ -5,6 +6,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Effects
 import VideoStudioUI
+import VideoStudio.Core
 import "components"
 
 Popup {
@@ -249,16 +251,19 @@ Popup {
                             title: "Project Defaults"
                             SettingsRow {
                                 label: "Default Location"
-                                value: "C:\\Users\\Videos\\Projects"
+                                value: SettingsController.general.defaultLocation
                                 isPath: true
+                                onValueChanged: SettingsController.general.defaultLocation = value
                             }
                             SettingsRow {
                                 label: "Auto-Save Interval"
-                                value: "5 minutes"
+                                value: SettingsController.general.autoSaveInterval
+                                onValueChanged: SettingsController.general.autoSaveInterval = value
                             }
                             SettingsRow {
                                 label: "Undo History Limit"
-                                value: "50 steps"
+                                value: SettingsController.general.undoHistoryLimit
+                                onValueChanged: SettingsController.general.undoHistoryLimit = value
                             }
                         }
 
@@ -266,15 +271,18 @@ Popup {
                             title: "Startup"
                             SettingsToggleRow {
                                 label: "Show Welcome Screen"
-                                checked: true
+                                checked: SettingsController.general.showWelcomeScreen
+                                onCheckedChanged: SettingsController.general.showWelcomeScreen = checked
                             }
                             SettingsToggleRow {
                                 label: "Load Last Project on Start"
-                                checked: false
+                                checked: SettingsController.general.loadLastProjectOnStart
+                                onCheckedChanged: SettingsController.general.loadLastProjectOnStart = checked
                             }
                             SettingsToggleRow {
                                 label: "Check for Updates Automatically"
-                                checked: true
+                                checked: SettingsController.general.checkForUpdatesAutomatically
+                                onCheckedChanged: SettingsController.general.checkForUpdatesAutomatically = checked
                             }
                         }
                     }
@@ -290,8 +298,9 @@ Popup {
                             SettingsComboBoxRow {
                                 label: "Color Theme"
                                 model: ["Dark (Default)", "Light", "System Default"]
-                                currentIndex: Theme.isDarkMode ? 0 : 1
+                                currentIndex: SettingsController.appearance.colorTheme
                                 onCurrentIndexChanged: {
+                                    SettingsController.appearance.colorTheme = currentIndex;
                                     if (currentIndex === 0 || currentIndex === 2) {
                                         Theme.isDarkMode = true;
                                     } else if (currentIndex === 1) {
@@ -301,12 +310,13 @@ Popup {
                             }
                             SettingsColorRow {
                                 label: "Accent Color"
-                                colorValue: "#58a8d8"
+                                colorValue: SettingsController.appearance.accentColor
                             }
                             SettingsComboBoxRow {
                                 label: "UI Scale"
                                 model: ["75%", "100%", "125%", "150%"]
-                                currentIndex: 1
+                                currentIndex: SettingsController.appearance.uiScale
+                                onCurrentIndexChanged: SettingsController.appearance.uiScale = currentIndex
                             }
                         }
 
@@ -315,17 +325,20 @@ Popup {
                             SettingsComboBoxRow {
                                 label: "Interface Font"
                                 model: ["System Default", "Inter", "Roboto", "Segoe UI"]
-                                currentIndex: 0
+                                currentIndex: SettingsController.appearance.interfaceFont
+                                onCurrentIndexChanged: SettingsController.appearance.interfaceFont = currentIndex
                             }
                             SettingsComboBoxRow {
                                 label: "Monospace Font"
                                 model: ["Consolas", "Fira Code", "Courier New"]
-                                currentIndex: 0
+                                currentIndex: SettingsController.appearance.monospaceFont
+                                onCurrentIndexChanged: SettingsController.appearance.monospaceFont = currentIndex
                             }
                             SettingsComboBoxRow {
                                 label: "Font Size"
                                 model: ["11px", "12px", "13px", "14px", "15px"]
-                                currentIndex: 2
+                                currentIndex: SettingsController.appearance.fontSize
+                                onCurrentIndexChanged: SettingsController.appearance.fontSize = currentIndex
                             }
                         }
                     }
@@ -340,19 +353,23 @@ Popup {
                             title: "Timeline Behavior"
                             SettingsToggleRow {
                                 label: "Snap to Timeline"
-                                checked: true
+                                checked: SettingsController.timeline.snapToTimeline
+                                onCheckedChanged: SettingsController.timeline.snapToTimeline = checked
                             }
                             SettingsToggleRow {
                                 label: "Ripple Edit by Default"
-                                checked: false
+                                checked: SettingsController.timeline.rippleEditByDefault
+                                onCheckedChanged: SettingsController.timeline.rippleEditByDefault = checked
                             }
                             SettingsToggleRow {
                                 label: "Auto-select Clips Under Playhead"
-                                checked: true
+                                checked: SettingsController.timeline.autoSelectClipsUnderPlayhead
+                                onCheckedChanged: SettingsController.timeline.autoSelectClipsUnderPlayhead = checked
                             }
                             SettingsRow {
                                 label: "Default Track Height"
-                                value: "Medium"
+                                value: SettingsController.timeline.defaultTrackHeight
+                                onValueChanged: SettingsController.timeline.defaultTrackHeight = value
                             }
                         }
 
@@ -360,15 +377,18 @@ Popup {
                             title: "Sequence Defaults"
                             SettingsRow {
                                 label: "Frame Rate"
-                                value: "24 fps"
+                                value: SettingsController.timeline.frameRate
+                                onValueChanged: SettingsController.timeline.frameRate = value
                             }
                             SettingsRow {
                                 label: "Resolution"
-                                value: "1920 × 1080"
+                                value: SettingsController.timeline.resolution
+                                onValueChanged: SettingsController.timeline.resolution = value
                             }
                             SettingsRow {
                                 label: "Pixel Aspect Ratio"
-                                value: "Square Pixels (1.0)"
+                                value: SettingsController.timeline.pixelAspectRatio
+                                onValueChanged: SettingsController.timeline.pixelAspectRatio = value
                             }
                         }
                     }
@@ -381,19 +401,23 @@ Popup {
                             title: "Playback Performance"
                             SettingsRow {
                                 label: "Playback Resolution"
-                                value: "Full"
+                                value: SettingsController.playback.playbackResolution
+                                onValueChanged: SettingsController.playback.playbackResolution = value
                             }
                             SettingsRow {
                                 label: "Video Renderer"
-                                value: "Mercury GPU Acceleration"
+                                value: SettingsController.playback.videoRenderer
+                                onValueChanged: SettingsController.playback.videoRenderer = value
                             }
                             SettingsToggleRow {
                                 label: "Drop Frames to Maintain Realtime"
-                                checked: true
+                                checked: SettingsController.playback.dropFramesToMaintainRealtime
+                                onCheckedChanged: SettingsController.playback.dropFramesToMaintainRealtime = checked
                             }
                             SettingsToggleRow {
                                 label: "Pre-roll Before Playback"
-                                checked: false
+                                checked: SettingsController.playback.preRollBeforePlayback
+                                onCheckedChanged: SettingsController.playback.preRollBeforePlayback = checked
                             }
                         }
                     }
@@ -406,15 +430,18 @@ Popup {
                             title: "Audio Hardware"
                             SettingsRow {
                                 label: "Default Audio Device"
-                                value: "System Default"
+                                value: SettingsController.audio.defaultAudioDevice
+                                onValueChanged: SettingsController.audio.defaultAudioDevice = value
                             }
                             SettingsRow {
                                 label: "Sample Rate"
-                                value: "48000 Hz"
+                                value: SettingsController.audio.sampleRate
+                                onValueChanged: SettingsController.audio.sampleRate = value
                             }
                             SettingsRow {
                                 label: "Buffer Size"
-                                value: "1024 samples"
+                                value: SettingsController.audio.bufferSize
+                                onValueChanged: SettingsController.audio.bufferSize = value
                             }
                         }
 
@@ -422,11 +449,13 @@ Popup {
                             title: "Audio Monitoring"
                             SettingsToggleRow {
                                 label: "Mute While Scrubbing"
-                                checked: false
+                                checked: SettingsController.audio.muteWhileScrubbing
+                                onCheckedChanged: SettingsController.audio.muteWhileScrubbing = checked
                             }
                             SettingsToggleRow {
                                 label: "Audio Peak Hold"
-                                checked: true
+                                checked: SettingsController.audio.audioPeakHold
+                                onCheckedChanged: SettingsController.audio.audioPeakHold = checked
                             }
                         }
                     }
@@ -439,12 +468,14 @@ Popup {
                             title: "Cache Location"
                             SettingsRow {
                                 label: "Media Cache Path"
-                                value: "C:\\Users\\AppData\\Local\\VideoStudio\\Cache"
+                                value: SettingsController.cache.mediaCachePath
                                 isPath: true
+                                onValueChanged: SettingsController.cache.mediaCachePath = value
                             }
                             SettingsRow {
                                 label: "Current Cache Size"
-                                value: "0 MB"
+                                value: SettingsController.cache.currentCacheSize
+                                onValueChanged: SettingsController.cache.currentCacheSize = value
                             }
                         }
 
@@ -452,11 +483,13 @@ Popup {
                             title: "Cache Management"
                             SettingsToggleRow {
                                 label: "Auto-Delete Old Cache Files"
-                                checked: true
+                                checked: SettingsController.cache.autoDeleteOldCacheFiles
+                                onCheckedChanged: SettingsController.cache.autoDeleteOldCacheFiles = checked
                             }
                             SettingsRow {
                                 label: "Maximum Cache Size"
-                                value: "10 GB"
+                                value: SettingsController.cache.maximumCacheSize
+                                onValueChanged: SettingsController.cache.maximumCacheSize = value
                             }
                         }
                     }
@@ -469,7 +502,8 @@ Popup {
                             title: "Keyboard Shortcuts"
                             SettingsRow {
                                 label: "Preset"
-                                value: "Video Studio Pro (Default)"
+                                value: SettingsController.keyboard.keyboardPreset
+                                onValueChanged: SettingsController.keyboard.keyboardPreset = value
                             }
                         }
 

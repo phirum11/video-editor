@@ -5,6 +5,9 @@
 
 #include <QColor>
 #include <QVector3D>
+#include <QThreadPool>
+#include <QSemaphore>
+#include <QThread>
 
 namespace {
 
@@ -17,7 +20,11 @@ QImage applyColorAdjust(const QImage& source, const ColorEffectData& color)
 {
     if (std::abs(color.brightness) < 0.0001
         && std::abs(color.contrast - 100.0) < 0.0001
-        && std::abs(color.saturation - 100.0) < 0.0001) {
+        && std::abs(color.saturation - 100.0) < 0.0001
+        && color.vignetteAmount <= 0.0001
+        && color.shadowsColor == "#808080"
+        && color.midtonesColor == "#808080"
+        && color.highlightsColor == "#808080") {
         return source;
     }
 
@@ -26,27 +33,85 @@ QImage applyColorAdjust(const QImage& source, const ColorEffectData& color)
     const double contrast = std::max(0.0, color.contrast) / 100.0;
     const double saturation = std::max(0.0, color.saturation) / 100.0;
 
-    for (int y = 0; y < result.height(); ++y) {
-        QRgb* line = reinterpret_cast<QRgb*>(result.scanLine(y));
-        for (int x = 0; x < result.width(); ++x) {
-            const QRgb pixel = line[x];
-            const double a = qAlpha(pixel);
-            double r = qRed(pixel);
-            double g = qGreen(pixel);
-            double b = qBlue(pixel);
-            const double gray = r * 0.299 + g * 0.587 + b * 0.114;
+    QColor sc(color.shadowsColor);
+    QColor mc(color.midtonesColor);
+    QColor hc(color.highlightsColor);
+    double sr = (sc.red() - 128.0) / 128.0;
+    double sg = (sc.green() - 128.0) / 128.0;
+    double sb = (sc.blue() - 128.0) / 128.0;
+    double mr = (mc.red() - 128.0) / 128.0;
+    double mg = (mc.green() - 128.0) / 128.0;
+    double mb = (mc.blue() - 128.0) / 128.0;
+    double hr = (hc.red() - 128.0) / 128.0;
+    double hg = (hc.green() - 128.0) / 128.0;
+    double hb = (hc.blue() - 128.0) / 128.0;
 
-            r = gray + (r - gray) * saturation;
-            g = gray + (g - gray) * saturation;
-            b = gray + (b - gray) * saturation;
+    const double cx = result.width() / 2.0;
+    const double cy = result.height() / 2.0;
+    const double maxDist = std::sqrt(cx*cx + cy*cy);
+    const double vigAmount = color.vignetteAmount / 100.0;
+    const double vigFeather = std::max(0.01, color.vignetteFeather / 100.0);
 
-            r = (r - 128.0) * contrast + 128.0 + brightness;
-            g = (g - 128.0) * contrast + 128.0 + brightness;
-            b = (b - 128.0) * contrast + 128.0 + brightness;
+    const int height = result.height();
+    const int width = result.width();
+    const int numThreads = QThread::idealThreadCount();
+    const int chunk = std::max(1, height / numThreads);
+    QSemaphore sem;
 
-            line[x] = qRgba(clampChannel(r), clampChannel(g), clampChannel(b), clampChannel(a));
+    for (int i = 0; i < numThreads; ++i) {
+        int startY = i * chunk;
+        int endY = (i == numThreads - 1) ? height : (i + 1) * chunk;
+        if (startY >= height) {
+            sem.release();
+            continue;
         }
+        QThreadPool::globalInstance()->start([&, startY, endY]() {
+            for (int y = startY; y < endY; ++y) {
+                QRgb* line = reinterpret_cast<QRgb*>(result.scanLine(y));
+                double dy = y - cy;
+                for (int x = 0; x < width; ++x) {
+                    const QRgb pixel = line[x];
+                    const double a = qAlpha(pixel);
+                    double r = qRed(pixel);
+                    double g = qGreen(pixel);
+                    double b = qBlue(pixel);
+                    const double gray = r * 0.299 + g * 0.587 + b * 0.114;
+
+                    r = gray + (r - gray) * saturation;
+                    g = gray + (g - gray) * saturation;
+                    b = gray + (b - gray) * saturation;
+
+                    r = (r - 128.0) * contrast + 128.0 + brightness;
+                    g = (g - 128.0) * contrast + 128.0 + brightness;
+                    b = (b - 128.0) * contrast + 128.0 + brightness;
+
+                    // Lumetri 3-way color wheels
+                    double sWeight = std::clamp(1.0 - (gray / 128.0), 0.0, 1.0);
+                    double mWeight = 1.0 - std::abs(gray - 128.0) / 128.0;
+                    double hWeight = std::clamp((gray - 128.0) / 127.0, 0.0, 1.0);
+
+                    r += (sr * sWeight + mr * mWeight + hr * hWeight) * 30.0;
+                    g += (sg * sWeight + mg * mWeight + hg * hWeight) * 30.0;
+                    b += (sb * sWeight + mb * mWeight + hb * hWeight) * 30.0;
+
+                    // Vignette
+                    if (vigAmount > 0.0) {
+                        double dx = x - cx;
+                        double dist = std::sqrt(dx*dx + dy*dy) / maxDist;
+                        double factor = std::clamp((dist - (1.0 - vigFeather)) / vigFeather, 0.0, 1.0);
+                        double darken = 1.0 - (factor * vigAmount);
+                        r *= darken;
+                        g *= darken;
+                        b *= darken;
+                    }
+
+                    line[x] = qRgba(clampChannel(r), clampChannel(g), clampChannel(b), clampChannel(a));
+                }
+            }
+            sem.release();
+        });
     }
+    sem.acquire(numThreads);
 
     return result.convertToFormat(QImage::Format_ARGB32_Premultiplied);
 }
@@ -145,31 +210,79 @@ QImage applyCarbonStyle(const QImage& source, double intensity)
 
 QImage applyGenericStylize(const QImage& source, const StylizeEffectData& stylize)
 {
-    if (stylize.styleName.compare(QStringLiteral("None"), Qt::CaseInsensitive) == 0
-        || stylize.intensity <= 0.0) {
-        return source;
-    }
+    if (source.isNull()) return source;
+
+    QImage result = source;
 
     if (stylize.styleName.compare(QStringLiteral("Multi-Shot Grid"), Qt::CaseInsensitive) == 0) {
-        return applyMultiShotGrid(source);
-    }
-    if (stylize.styleName.contains(QStringLiteral("Glitch"), Qt::CaseInsensitive)) {
-        return applyGlitchStyle(source, stylize.intensity);
-    }
-    if (stylize.styleName.contains(QStringLiteral("Carbon"), Qt::CaseInsensitive)) {
-        return applyCarbonStyle(source, stylize.intensity);
+        result = applyMultiShotGrid(result);
+    } else if (stylize.styleName.contains(QStringLiteral("Glitch"), Qt::CaseInsensitive)) {
+        result = applyGlitchStyle(result, stylize.intensity);
+    } else if (stylize.styleName.contains(QStringLiteral("Carbon"), Qt::CaseInsensitive)) {
+        result = applyCarbonStyle(result, stylize.intensity);
+    } else if (stylize.styleName.compare(QStringLiteral("None"), Qt::CaseInsensitive) != 0 && stylize.intensity > 0.0) {
+        result = result.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+        QPainter painter(&result);
+        painter.setCompositionMode(QPainter::CompositionMode_SoftLight);
+        const uint hash = qHash(stylize.styleName);
+        const QColor tint(static_cast<int>(80 + hash % 120),
+                          static_cast<int>(80 + (hash >> 8) % 120),
+                          static_cast<int>(80 + (hash >> 16) % 120),
+                          static_cast<int>(std::clamp(stylize.intensity, 0.0, 100.0) * 1.2));
+        painter.fillRect(result.rect(), tint);
+        painter.end();
     }
 
-    QImage result = source.convertToFormat(QImage::Format_ARGB32_Premultiplied);
-    QPainter painter(&result);
-    painter.setCompositionMode(QPainter::CompositionMode_SoftLight);
-    const uint hash = qHash(stylize.styleName);
-    const QColor tint(static_cast<int>(80 + hash % 120),
-                      static_cast<int>(80 + (hash >> 8) % 120),
-                      static_cast<int>(80 + (hash >> 16) % 120),
-                      static_cast<int>(std::clamp(stylize.intensity, 0.0, 100.0) * 1.2));
-    painter.fillRect(result.rect(), tint);
-    painter.end();
+    // Glitch / Distortion custom sliders
+    if (stylize.glitchEnabled || stylize.glitchWaveWarp > 0 || stylize.glitchRGBSplit > 0) {
+        QImage input = result.convertToFormat(QImage::Format_ARGB32);
+        QImage glitched(input.size(), QImage::Format_ARGB32);
+        int rgbSplit = static_cast<int>(std::lround(stylize.glitchRGBSplit / 100.0 * 25.0));
+        double waveWarp = stylize.glitchWaveWarp / 100.0 * 30.0;
+
+        for (int y = 0; y < input.height(); ++y) {
+            const QRgb* src = reinterpret_cast<const QRgb*>(input.constScanLine(y));
+            QRgb* dst = reinterpret_cast<QRgb*>(glitched.scanLine(y));
+            int warpShift = static_cast<int>(std::lround(std::sin(y * 0.1) * waveWarp));
+            for (int x = 0; x < input.width(); ++x) {
+                const QRgb center = src[std::clamp(x + warpShift, 0, input.width() - 1)];
+                const QRgb redPixel = src[std::clamp(x + warpShift - rgbSplit, 0, input.width() - 1)];
+                const QRgb bluePixel = src[std::clamp(x + warpShift + rgbSplit, 0, input.width() - 1)];
+                dst[x] = qRgba(qRed(redPixel), qGreen(center), qBlue(bluePixel), qAlpha(center));
+            }
+        }
+        result = glitched.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    }
+
+    // Drop Shadow
+    if (stylize.dropShadowEnabled || stylize.dropShadowDistance > 0) {
+        // Draw drop shadow overlay/border
+        QPainter painter(&result);
+        int dist = static_cast<int>(stylize.dropShadowDistance);
+        painter.fillRect(QRect(dist, dist, result.width(), result.height()), QColor(0, 0, 0, static_cast<int>(stylize.dropShadowOpacity * 2.55 * 0.5)));
+        painter.end();
+    }
+
+    // Audio Visualizer
+    if (stylize.audioVisualizerEnabled && stylize.audioVisualizerBands > 0) {
+        result = result.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+        QPainter painter(&result);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        int bands = static_cast<int>(stylize.audioVisualizerBands);
+        int barWidth = std::max(1, result.width() / (bands * 2));
+        int maxHeight = std::max(10, result.height() / 4);
+        int startX = (result.width() - (bands * barWidth * 2)) / 2;
+        
+        for (int i = 0; i < bands; ++i) {
+            // Pseudo-random height simulation
+            double val = std::sin(i * 0.3 + result.width()) * std::cos(i * 0.7);
+            int h = static_cast<int>(std::abs(val) * maxHeight * (stylize.audioVisualizerSmoothing / 50.0));
+            QRect bar(startX + i * barWidth * 2, result.height() - h - 20, barWidth, h);
+            painter.fillRect(bar, QColor(56, 189, 248, 200));
+        }
+        painter.end();
+    }
+
     return result;
 }
 
@@ -421,15 +534,90 @@ void EffectProcessor::boxBlurPass(const QImage& input, QImage& output, int radiu
 
 void EffectProcessor::processAudio(QByteArray& pcmFloat, const ClipEffects& effects)
 {
-    if (effects.audio.volume == 100.0) return; // No change
+    if (std::abs(effects.audio.volume) < 0.0001 && std::abs(effects.audio.pan) < 0.0001 && std::abs(effects.audio.pitch) < 0.0001 && std::abs(effects.audio.eq1k) < 0.0001) return; // No change
     
     if (pcmFloat.isEmpty()) return;
     
-    float volMultiplier = static_cast<float>(effects.audio.volume / 100.0);
+    // Volume in dB
+    float volMultiplier = std::pow(10.0f, static_cast<float>(effects.audio.volume) / 20.0f);
+    float pan = static_cast<float>(effects.audio.pan) / 100.0f;
+    float leftMult = volMultiplier * (pan > 0 ? 1.0f - pan : 1.0f);
+    float rightMult = volMultiplier * (pan < 0 ? 1.0f + pan : 1.0f);
     
     auto* samples = reinterpret_cast<float*>(pcmFloat.data());
     const qsizetype sampleCount = pcmFloat.size() / static_cast<qsizetype>(sizeof(float));
     for (qsizetype i = 0; i < sampleCount; ++i) {
-        samples[i] = samples[i] * volMultiplier;
+        float mult = (i % 2 == 0) ? leftMult : rightMult;
+        // Basic EQ gain simulation factor
+        if (effects.audio.eq1k != 0.0) {
+            mult *= (1.0f + static_cast<float>(effects.audio.eq1k) / 30.0f);
+        }
+        samples[i] = samples[i] * mult;
     }
 }
+
+QImage EffectProcessor::compositeGifOverlay(const QImage& base, const QImage& gifFrame)
+{
+    if (gifFrame.isNull() || base.isNull()) {
+        return base;
+    }
+
+    QImage result = base.convertToFormat(QImage::Format_ARGB32);
+    QImage scaledGif = gifFrame;
+    if (scaledGif.size() != result.size()) {
+        scaledGif = scaledGif.scaled(result.size(), Qt::IgnoreAspectRatio, Qt::FastTransformation);
+    }
+    scaledGif = scaledGif.convertToFormat(QImage::Format_ARGB32);
+
+    const int width = result.width();
+    const int height = result.height();
+    const int numThreads = QThread::idealThreadCount();
+    const int chunk = std::max(1, height / numThreads);
+    QSemaphore sem;
+
+    for (int i = 0; i < numThreads; ++i) {
+        int startY = i * chunk;
+        int endY = (i == numThreads - 1) ? height : (i + 1) * chunk;
+        if (startY >= height) {
+            sem.release();
+            continue;
+        }
+        QThreadPool::globalInstance()->start([&, startY, endY]() {
+            for (int y = startY; y < endY; ++y) {
+                QRgb* baseLine = reinterpret_cast<QRgb*>(result.scanLine(y));
+                const QRgb* ovLine = reinterpret_cast<const QRgb*>(scaledGif.constScanLine(y));
+
+                for (int x = 0; x < width; ++x) {
+                    QRgb bPx = baseLine[x];
+                    QRgb oPx = ovLine[x];
+
+                    double br = qRed(bPx) / 255.0;
+                    double bg = qGreen(bPx) / 255.0;
+                    double bb = qBlue(bPx) / 255.0;
+                    double ba = qAlpha(bPx) / 255.0;
+
+                    double or_ = qRed(oPx) / 255.0;
+                    double og = qGreen(oPx) / 255.0;
+                    double ob = qBlue(oPx) / 255.0;
+                    double oa = qAlpha(oPx) / 255.0;
+
+                    // Sample the video's luminance to modulate the overlay's alpha
+                    double luminance = br * 0.299 + bg * 0.587 + bb * 0.114;
+                    oa *= (0.2 + 0.8 * luminance);
+
+                    // Screen / Additive blend mode
+                    double fr = 1.0 - (1.0 - br) * (1.0 - or_ * oa);
+                    double fg = 1.0 - (1.0 - bg) * (1.0 - og * oa);
+                    double fb = 1.0 - (1.0 - bb) * (1.0 - ob * oa);
+
+                    baseLine[x] = qRgba(clampChannel(fr * 255.0), clampChannel(fg * 255.0), clampChannel(fb * 255.0), clampChannel(ba * 255.0));
+                }
+            }
+            sem.release();
+        });
+    }
+    sem.acquire(numThreads);
+
+    return result.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+}
+

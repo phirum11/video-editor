@@ -214,11 +214,11 @@ QImage AudioWaveformProvider::generateWaveform(const QString& filePath, const QS
     painter.setPen(pen);
     
     int h = targetSize.height();
-    int centerY = h / 2;
+    int bottomY = h - 1;
     
-    // Draw center line
+    // Draw bottom line
     painter.setPen(QColor(tealColor).darker(150));
-    painter.drawLine(0, centerY, targetSize.width(), centerY);
+    painter.drawLine(0, bottomY, targetSize.width(), bottomY);
     
     painter.setPen(pen);
     
@@ -235,8 +235,8 @@ QImage AudioWaveformProvider::generateWaveform(const QString& filePath, const QS
         int barHeight = static_cast<int>(normalized * (h - 2));
         if (barHeight < 2 && p > 0.001f) barHeight = 2; // min height
         
-        int y1 = centerY - barHeight / 2;
-        int y2 = centerY + barHeight / 2;
+        int y1 = bottomY;
+        int y2 = bottomY - barHeight;
         
         painter.drawLine(i, y1, i, y2);
     }

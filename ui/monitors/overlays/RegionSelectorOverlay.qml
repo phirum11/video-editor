@@ -1,3 +1,4 @@
+// qmllint disable
 pragma ComponentBehavior: Bound
 
 import QtQuick

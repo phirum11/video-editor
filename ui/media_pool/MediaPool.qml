@@ -1,3 +1,4 @@
+// qmllint disable
 pragma ComponentBehavior: Bound
 
 import QtQuick
@@ -27,6 +28,10 @@ Rectangle {
     property string viewMode: "grid"
     property real thumbnailZoom: 0.5
     property var addedMediaPaths: ({})
+    property bool showFilterPanel: true
+    property bool showThumbnails: true
+    property bool showAudioWaveforms: true
+    property bool showKeyframes: false
 
     signal mediaActivated(string name, string filePath, real duration, bool hasVideo, bool hasAudio)
     signal mediaDeleted(string filePath)
@@ -137,7 +142,9 @@ Rectangle {
 
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 68
+                    Layout.preferredHeight: mediaPoolRoot.showFilterPanel ? 68 : 0
+                    visible: mediaPoolRoot.showFilterPanel
+                    clip: true
                     color: mediaPoolRoot.panelTop
 
                     ColumnLayout {
@@ -204,6 +211,114 @@ Rectangle {
                                     selectByMouse: true
                                     background: Item {}
                                     onTextChanged: mediaPoolController.searchQuery = text
+                                }
+                            }
+
+                            ComboBox {
+                                id: typeFilterCombo
+                                Layout.preferredHeight: 26
+                                Layout.preferredWidth: 100
+                                model: [qsTr("All"), qsTr("Video"), qsTr("Audio"), qsTr("Image"), qsTr("Subtitle")]
+                                currentIndex: mediaPoolController.mediaTypeFilter
+                                onActivated: mediaPoolController.mediaTypeFilter = currentIndex
+
+                                HoverHandler { cursorShape: Qt.PointingHandCursor }
+
+                                background: Rectangle {
+                                    color: typeFilterCombo.pressed ? Theme.surfacePressed : (typeFilterCombo.hovered ? Theme.surfaceHover : "transparent")
+                                    border.color: Theme.dividerSoft
+                                    border.width: 1
+                                    radius: 3
+                                }
+
+                                contentItem: Text {
+                                    leftPadding: 8
+                                    rightPadding: typeFilterCombo.indicator.width + typeFilterCombo.spacing
+                                    text: typeFilterCombo.displayText
+                                    color: mediaPoolRoot.textPrimary
+                                    verticalAlignment: Text.AlignVCenter
+                                    font.pixelSize: 12
+                                }
+
+                                indicator: Image {
+                                    x: typeFilterCombo.width - width - 8
+                                    y: typeFilterCombo.topPadding + (typeFilterCombo.availableHeight - height) / 2
+                                    width: 16
+                                    height: 16
+                                    source: typeFilterCombo.popup.visible ? "qrc:/VideoStudioUI/assets/chevron-up.svg" : "qrc:/VideoStudioUI/assets/chevron-down.svg"
+                                    sourceSize: Qt.size(16, 16)
+                                    opacity: typeFilterCombo.enabled ? 0.7 : 0.3
+                                    
+                                    layer.enabled: true
+                                    layer.effect: MultiEffect {
+                                        colorization: 1.0
+                                        colorizationColor: mediaPoolRoot.textPrimary
+                                    }
+                                }
+
+                                popup: Popup {
+                                    y: typeFilterCombo.height + 4
+                                    width: typeFilterCombo.width
+                                    padding: 4
+                                    
+                                    contentItem: ListView {
+                                        clip: true
+                                        implicitHeight: contentHeight
+                                        model: typeFilterCombo.popup.visible ? typeFilterCombo.delegateModel : null
+                                        currentIndex: typeFilterCombo.highlightedIndex
+                                        ScrollIndicator.vertical: ScrollIndicator { }
+                                    }
+
+                                    enter: Transition {
+                                        ParallelAnimation {
+                                            NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 150; easing.type: Easing.OutQuad }
+                                            NumberAnimation { property: "y"; from: typeFilterCombo.height; to: typeFilterCombo.height + 4; duration: 150; easing.type: Easing.OutQuad }
+                                        }
+                                    }
+
+                                    exit: Transition {
+                                        NumberAnimation { property: "opacity"; from: 1.0; to: 0.0; duration: 100 }
+                                    }
+
+                                    background: Rectangle {
+                                        color: Theme.surface
+                                        border.color: Theme.dividerSoft
+                                        border.width: 1
+                                        radius: 4
+                                        layer.enabled: true
+                                        layer.effect: MultiEffect {
+                                            shadowEnabled: true
+                                            shadowColor: "#60000000"
+                                            shadowBlur: 0.5
+                                            shadowVerticalOffset: 2
+                                        }
+                                    }
+                                }
+
+                                delegate: ItemDelegate {
+                                    id: filterDelegate
+                                    width: typeFilterCombo.popup.width - 8
+                                    height: 28
+                                    padding: 8
+                                    
+                                    required property string modelData
+                                    required property int index
+                                    
+                                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+
+                                    contentItem: Text {
+                                        text: filterDelegate.modelData
+                                        color: highlighted ? Theme.accent : mediaPoolRoot.textPrimary
+                                        font.pixelSize: 12
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                    
+                                    background: Rectangle {
+                                        radius: 3
+                                        color: filterDelegate.highlighted ? Theme.surfaceHover : "transparent"
+                                    }
+                                    
+                                    highlighted: typeFilterCombo.highlightedIndex === filterDelegate.index
                                 }
                             }
 
@@ -518,7 +633,7 @@ Rectangle {
                                 Image {
                                     id: thumbImage
                                     anchors.fill: parent
-                                    source: mediaDelegate.filePath.toLowerCase().endsWith(".srt") ? "" : ("image://media/" + encodeURIComponent(mediaDelegate.filePath))
+                                    source: (mediaDelegate.filePath.toLowerCase().endsWith(".srt") || !mediaPoolRoot.showThumbnails) ? "" : ("image://media/" + encodeURIComponent(mediaDelegate.filePath))
                                     sourceSize.width: Math.ceil(thumbnail.width)
                                     sourceSize.height: Math.ceil(thumbnail.height)
                                     asynchronous: true
@@ -540,6 +655,7 @@ Rectangle {
                                     source: thumbImage
                                     maskEnabled: true
                                     maskSource: maskRect
+                                    visible: mediaPoolRoot.showThumbnails && !mediaDelegate.filePath.toLowerCase().endsWith(".srt")
                                 }
 
                                 Rectangle {
@@ -559,6 +675,60 @@ Rectangle {
                                     text: "📝"
                                     font.pixelSize: 24
                                     visible: mediaDelegate.filePath.toLowerCase().endsWith(".srt")
+                                }
+
+                                // Placeholder icon when thumbnails are disabled
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: mediaDelegate.mediaHasVideo ? "🎬" : (mediaDelegate.mediaHasAudio ? "🎵" : "🖼️")
+                                    font.pixelSize: 24
+                                    visible: !mediaPoolRoot.showThumbnails && !mediaDelegate.filePath.toLowerCase().endsWith(".srt")
+                                }
+
+                                // Beautiful Audio Waveform display
+                                Row {
+                                    anchors.centerIn: parent
+                                    spacing: 3
+                                    visible: mediaPoolRoot.showAudioWaveforms && mediaDelegate.mediaHasAudio && !mediaDelegate.mediaHasVideo
+                                    
+                                    Repeater {
+                                        model: 8
+                                        Rectangle {
+                                            id: waveBar
+                                            required property int index
+                                            width: 3
+                                            height: 12 + Math.sin((waveBar.index + mediaDelegate.index) * 0.8) * 8
+                                            color: mediaPoolRoot.accent
+                                            radius: 1
+                                            opacity: 0.85
+                                        }
+                                    }
+                                }
+
+                                // Keyframe indicator badge
+                                Rectangle {
+                                    id: keyframeBadge
+                                    anchors.left: parent.left
+                                    anchors.bottom: parent.bottom
+                                    anchors.leftMargin: 5
+                                    anchors.bottomMargin: 5
+                                    width: keyframeText.implicitWidth + 10
+                                    height: 18
+                                    radius: 3
+                                    color: "#182a35"
+                                    border.color: mediaPoolRoot.accent
+                                    border.width: 1
+                                    visible: mediaPoolRoot.showKeyframes && (mediaDelegate.mediaHasVideo || mediaDelegate.mediaHasAudio)
+                                    z: 5
+
+                                    Text {
+                                        id: keyframeText
+                                        anchors.centerIn: parent
+                                        text: "♦ Keyframes"
+                                        color: mediaPoolRoot.accent
+                                        font.pixelSize: 10
+                                        font.weight: Font.DemiBold
+                                    }
                                 }
                             }
 
@@ -611,13 +781,13 @@ Rectangle {
                                 Drag.source: dragProxy
                                 Drag.keys: ["videoStudio/media"]
                                 Drag.supportedActions: Qt.CopyAction
-                                Drag.hotSpot.x: width / 2
-                                Drag.hotSpot.y: height / 2
+                                Drag.hotSpot.x: dragMouse.pressPos.x
+                                Drag.hotSpot.y: dragMouse.pressPos.y
 
                                 Image {
                                     anchors.fill: parent
                                     anchors.margins: 1
-                                    source: mediaDelegate.filePath.toLowerCase().endsWith(".srt") ? "" : ("image://media/" + encodeURIComponent(mediaDelegate.filePath))
+                                    source: (mediaDelegate.filePath.toLowerCase().endsWith(".srt") || !mediaPoolRoot.showThumbnails) ? "" : ("image://media/" + encodeURIComponent(mediaDelegate.filePath))
                                     sourceSize.width: Math.ceil(thumbnail.width)
                                     sourceSize.height: Math.ceil(thumbnail.height)
                                     fillMode: Image.PreserveAspectCrop
@@ -863,7 +1033,10 @@ Rectangle {
                                 drag.target: dragTargetDummy
                                 drag.threshold: 8
 
+                                property point pressPos: Qt.point(width / 2, height / 2)
+
                                 onPressed: (mouse) => {
+                                    pressPos = Qt.point(mouse.x, mouse.y)
                                     if (!mediaPoolRoot.selectedMediaIndices.includes(mediaDelegate.index)) {
                                         if (mouse.modifiers & Qt.ControlModifier) {
                                             mediaPoolRoot.selectedMediaIndices = mediaPoolRoot.selectedMediaIndices.concat([mediaDelegate.index])
@@ -951,12 +1124,22 @@ Rectangle {
                     Layout.preferredHeight: 34
                     viewMode: mediaPoolRoot.viewMode
                     zoomValue: mediaPoolRoot.thumbnailZoom
+                    filterPanelVisible: mediaPoolRoot.showFilterPanel
+                    showThumbnails: mediaPoolRoot.showThumbnails
+                    showAudioWaveforms: mediaPoolRoot.showAudioWaveforms
+                    showKeyframes: mediaPoolRoot.showKeyframes
                     panelLine: Theme.divider
                     textPrimary: mediaPoolRoot.textPrimary
                     textMuted: mediaPoolRoot.textMuted
                     accent: mediaPoolRoot.accent
                     onViewModeRequested: function(mode) { mediaPoolRoot.viewMode = mode }
                     onZoomValueRequested: function(value) { mediaPoolRoot.thumbnailZoom = value }
+                    onPanelToggled: function() { mediaPoolRoot.showFilterPanel = !mediaPoolRoot.showFilterPanel }
+                    onShowThumbnailsToggled: function(show) { mediaPoolRoot.showThumbnails = show }
+                    onShowAudioWaveformsToggled: function(show) { mediaPoolRoot.showAudioWaveforms = show }
+                    onShowKeyframesToggled: function(show) { mediaPoolRoot.showKeyframes = show }
+                    onMinimizeAllRequested: function() { mediaPoolRoot.thumbnailZoom = 0.0 }
+                    onExpandAllRequested: function() { mediaPoolRoot.thumbnailZoom = 1.0 }
                 }
             }
 

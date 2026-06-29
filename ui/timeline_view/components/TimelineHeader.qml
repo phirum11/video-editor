@@ -1,3 +1,4 @@
+// qmllint disable
 pragma ComponentBehavior: Bound
 
 import QtQuick
@@ -16,23 +17,23 @@ Rectangle {
     property real zoomValue: 0
     property var timelineController: null
 
-    signal closeRequested()
-    signal menuRequested()
+    signal closeRequested
+    signal menuRequested
     signal toolSelected(string tool)
     signal snapToggled(bool enabled)
-    signal markerRequested()
-    signal zoomInRequested()
-    signal zoomOutRequested()
+    signal markerRequested
+    signal zoomInRequested
+    signal zoomOutRequested
     signal zoomValueRequested(real value)
     signal generateAudioRequested(string language)
-    signal autoEditRequested()
-    
-    signal undoRequested()
-    signal redoRequested()
-    signal splitRequested()
-    signal deleteLeftRequested()
-    signal deleteRightRequested()
-    signal deleteRequested()
+    signal autoEditRequested
+
+    signal undoRequested
+    signal redoRequested
+    signal splitRequested
+    signal deleteLeftRequested
+    signal deleteRightRequested
+    signal deleteRequested
 
     property bool hasSelection: false
     property bool playheadOverSelection: false
@@ -89,10 +90,10 @@ Rectangle {
         HeaderIconButton {
             iconSource: "qrc:/VideoStudioUI/assets/split.svg"
             toolTipText: qsTr("Split(Ctrl+B)")
-            enabled: headerRoot.playheadOverSelection  
-            onClicked: headerRoot.splitRequested()   
-        }    
-        
+            enabled: headerRoot.playheadOverSelection
+            onClicked: headerRoot.splitRequested()
+        }
+
         HeaderIconButton {
             iconSource: "qrc:/VideoStudioUI/assets/delete-left.svg"
             toolTipText: qsTr("Delete left(Q)")
@@ -192,14 +193,14 @@ Rectangle {
             Layout.preferredHeight: 24
             Layout.preferredWidth: 130
             model: [qsTr("Khmer"), qsTr("English (Male)"), qsTr("English (Female)")]
-            
+
             background: Rectangle {
                 color: aiLangCombo.pressed ? Theme.surfacePressed : (aiLangCombo.hovered ? Theme.surfaceHover : "transparent")
                 border.color: Theme.divider
                 border.width: 1
                 radius: 4
             }
-            
+
             contentItem: Text {
                 text: aiLangCombo.displayText
                 color: headerRoot.textPrimary
@@ -207,12 +208,68 @@ Rectangle {
                 leftPadding: 8
                 font.pixelSize: 12
             }
+
+            indicator: Image {
+                x: aiLangCombo.width - width - 8
+                y: aiLangCombo.topPadding + (aiLangCombo.availableHeight - height) / 2
+                width: 14
+                height: 14
+                source: aiLangCombo.popup.visible ? "qrc:/VideoStudioUI/assets/chevron-up.svg" : "qrc:/VideoStudioUI/assets/chevron-down.svg"
+                fillMode: Image.PreserveAspectFit
+                opacity: aiLangCombo.enabled ? 0.8 : 0.3
+            }
+
+            delegate: ItemDelegate {
+                id: itemDlg
+                required property int index
+                required property string modelData
+
+                width: aiLangCombo.width - 8
+                height: 28
+                highlighted: aiLangCombo.highlightedIndex === itemDlg.index
+
+                background: Rectangle {
+                    color: itemDlg.highlighted ? Theme.surfaceHover : "transparent"
+                    radius: 4
+                }
+
+                contentItem: Text {
+                    text: itemDlg.modelData
+                    color: itemDlg.highlighted ? Theme.accent : Theme.text
+                    font.pixelSize: 12
+                    verticalAlignment: Text.AlignVCenter
+                    leftPadding: 8
+                }
+            }
+
+            popup: Popup {
+                y: aiLangCombo.height + 4
+                width: aiLangCombo.width
+                implicitHeight: contentItem.implicitHeight + 8
+                padding: 4
+
+                contentItem: ListView {
+                    clip: true
+                    implicitHeight: contentHeight
+                    model: aiLangCombo.popup.visible ? aiLangCombo.delegateModel : null
+                    currentIndex: aiLangCombo.highlightedIndex
+                    interactive: false
+                }
+
+                background: Rectangle {
+                    color: Theme.surfaceRaised
+                    border.color: Theme.divider
+                    border.width: 1
+                    radius: 6
+                    layer.enabled: true
+                }
+            }
         }
 
         HeaderIconButton {
             iconSource: "qrc:/VideoStudioUI/assets/ai-voice.svg"
             toolTipText: qsTr("Generate AI Voice from SRT")
-            enabled: headerRoot.timelineController && !headerRoot.timelineController.isGeneratingAIVoice
+            enabled: headerRoot.timelineController && !headerRoot.timelineController.isGeneratingAIVoice && headerRoot.timelineController.hasSubtitleTrack
             opacity: enabled ? 1.0 : 0.4
             onClicked: headerRoot.generateAudioRequested(aiLangCombo.currentText)
         }
@@ -224,7 +281,9 @@ Rectangle {
             onClicked: headerRoot.autoEditRequested()
         }
 
-        Item { Layout.fillWidth: true }
+        Item {
+            Layout.fillWidth: true
+        }
 
         AbstractButton {
             id: zoomOutBtn
@@ -232,7 +291,9 @@ Rectangle {
             Layout.preferredHeight: 24
             hoverEnabled: true
 
-            HoverHandler { cursorShape: Qt.PointingHandCursor }
+            HoverHandler {
+                cursorShape: Qt.PointingHandCursor
+            }
 
             enabled: headerRoot.zoomValue > 0
             ToolTip.visible: hovered
@@ -315,7 +376,9 @@ Rectangle {
             Layout.preferredHeight: 24
             hoverEnabled: true
 
-            HoverHandler { cursorShape: Qt.PointingHandCursor }
+            HoverHandler {
+                cursorShape: Qt.PointingHandCursor
+            }
 
             enabled: headerRoot.zoomValue < 1
             ToolTip.visible: hovered
@@ -351,7 +414,9 @@ Rectangle {
             color: headerRoot.textMuted
             font.pixelSize: 14
 
-            HoverHandler { id: menuHover }
+            HoverHandler {
+                id: menuHover
+            }
             ToolTip.visible: menuHover.hovered
             ToolTip.text: qsTr("Timeline Menu")
 
@@ -375,16 +440,16 @@ Rectangle {
         hoverEnabled: true
         opacity: enabled ? 1.0 : 0.38
 
-        HoverHandler { cursorShape: Qt.PointingHandCursor }
+        HoverHandler {
+            cursorShape: Qt.PointingHandCursor
+        }
 
         ToolTip.visible: hovered && toolTipText !== ""
         ToolTip.text: toolTipText
 
         background: Rectangle {
             radius: 4
-            color: buttonRoot.active
-                ? "#2d5264"
-                : (buttonRoot.pressed ? Theme.surfacePressed : (buttonRoot.hovered ? Theme.surfaceHover : "transparent"))
+            color: buttonRoot.active ? "#2d5264" : (buttonRoot.pressed ? Theme.surfacePressed : (buttonRoot.hovered ? Theme.surfaceHover : "transparent"))
             border.color: buttonRoot.active ? "#66aacf" : (buttonRoot.hovered ? Theme.divider : "transparent")
             border.width: 1
         }

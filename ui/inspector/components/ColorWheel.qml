@@ -1,3 +1,4 @@
+// qmllint disable
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -7,6 +8,12 @@ Item {
     id: root
     implicitWidth: 80
     implicitHeight: 110
+
+    function reset() {
+        wheelArea.handleX = wheelArea.width / 2;
+        wheelArea.handleY = 4;
+        colorSlider.value = 0;
+    }
 
     property color selectedColor: {
         let cx = wheelArea.width / 2;

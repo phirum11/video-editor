@@ -929,6 +929,20 @@ QStringList VideoExporter::buildFfmpegArguments(const QList<ClipSpec>& clips,
         if (clip.startSeconds >= chunkEnd || clip.startSeconds + clip.durationSeconds <= chunkStart) {
             continue;
         }
+        if (settings.exportVideo && clip.isEffect) {
+            QString gifPath = clip.effects.stylize.gifFilePath;
+            if (gifPath.contains(QStringLiteral("thumbnails"), Qt::CaseInsensitive)) {
+                gifPath.clear();
+            }
+            if (!gifPath.isEmpty()) {
+                if (gifPath.startsWith(QStringLiteral("file://"))) {
+                    gifPath = QUrl(gifPath).toLocalFile();
+                }
+                inputIndexBySourceRow.insert(clip.sourceIndex, nextInputIndex++);
+                args << QStringLiteral("-ignore_loop") << QStringLiteral("0") << QStringLiteral("-i") << gifPath;
+                continue;
+            }
+        }
         const bool needInput = (settings.exportVideo && clip.hasVideo) || (settings.exportAudio && clip.hasAudio);
         if (!needInput) {
             continue;
@@ -1025,6 +1039,32 @@ QStringList VideoExporter::buildFfmpegArguments(const QList<ClipSpec>& clips,
                 filters << QStringLiteral("[%1]%2:%3[%4]")
                                .arg(previous,
                                     gaussianBlurFilter(blur.radius),
+                                    enable,
+                                    output);
+                previous = output;
+            }
+
+            const int gifInputIndex = inputIndexBySourceRow.value(effectClip.sourceIndex, -1);
+            if (gifInputIndex >= 0) {
+                const double sourceStart = overlapStartTimeline - effectClip.startSeconds;
+                const double timelineStartInChunk = overlapStartTimeline - chunkStart;
+                const double overlapDuration = overlapEndTimeline - overlapStartTimeline;
+
+                const QString gifScaled = QStringLiteral("gif%1_scaled").arg(timelineEffectIndex);
+                const QString output = QStringLiteral("timeline_fx%1_gif").arg(timelineEffectIndex++);
+                filters << QStringLiteral("[%1:v]trim=start=%2:duration=%3,setpts=PTS-STARTPTS+%4/TB,fps=%5,scale=%6:%7,setsar=1,format=rgba[%8]")
+                               .arg(gifInputIndex)
+                               .arg(number(sourceStart))
+                               .arg(number(overlapDuration))
+                               .arg(number(timelineStartInChunk))
+                               .arg(number(settings.frameRate))
+                               .arg(settings.width)
+                               .arg(settings.height)
+                               .arg(gifScaled);
+
+                filters << QStringLiteral("[%1][%2]blend=all_mode=screen:%3[%4]")
+                               .arg(previous,
+                                    gifScaled,
                                     enable,
                                     output);
                 previous = output;

@@ -10,13 +10,57 @@ set(CMAKE_AUTOUIC ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 QuickDialogs2 Widgets Multimedia)
 
+# Disable VST3 SDK sample applications and validator to prevent target collisions
+set(SMTG_ENABLE_VST3_HOSTING_EXAMPLES OFF CACHE BOOL "Disable VST3 hosting samples" FORCE)
+set(SMTG_ENABLE_VST3_PLUGIN_EXAMPLES OFF CACHE BOOL "Disable VST3 plugin samples" FORCE)
+set(SMTG_ENABLE_VSTGUI_SUPPORT OFF CACHE BOOL "Disable VSTGUI support" FORCE)
+set(SMTG_RUN_VST_VALIDATOR OFF CACHE BOOL "Disable VST validator" FORCE)
+
+include(FetchContent)
+
+
+
+# 1. rLottie (Vector Animation Engine)
+FetchContent_Declare(rlottie
+    GIT_REPOSITORY https://github.com/Samsung/rlottie.git
+    GIT_TAG master
+)
+
+# 2. Lua & Sol2 (Scripting Engine for Effect Chains)
+FetchContent_Declare(lua
+    GIT_REPOSITORY https://github.com/marovira/lua.git
+    GIT_TAG master
+)
+FetchContent_Declare(sol2
+    GIT_REPOSITORY https://github.com/ThePhD/sol2.git
+    GIT_TAG v3.3.0
+)
+
+# 3. Steinberg VST3 SDK (Professional Audio DSP)
+FetchContent_Declare(vst3sdk
+    GIT_REPOSITORY https://github.com/steinbergmedia/vst3sdk.git
+    GIT_TAG master
+)
+
+# 4. Modern C++ JSON (For Lottie and Config Parsing)
+FetchContent_Declare(json
+    GIT_REPOSITORY https://github.com/nlohmann/json.git
+    GIT_TAG v3.11.3
+)
+
+FetchContent_MakeAvailable(lua sol2 rlottie json vst3sdk)
+
+
 add_executable(VideoStudio
+    app.rc
     core/main.cpp
+    crash/CrashHandler.cpp
     core/utils/MediaImageProvider.cpp
     core/media/models/MediaListModel.cpp
     core/media/managers/MediaManager.cpp
     core/media/models/MediaItem.cpp
     core/media/providers/AudioWaveformProvider.cpp
+    core/media/components/HardwareWaveformItem.cpp
     core/rendering/RenderEngine.cpp
     core/rendering/VideoRenderer.cpp
     core/timeline/models/TimelineClipModel.cpp
@@ -24,6 +68,13 @@ add_executable(VideoStudio
     core/timeline/models/Track.cpp
     core/timeline/models/Clip.cpp
 )
+
+if(WIN32)
+    add_custom_target(StopVideoStudio ALL
+        COMMAND taskkill /F /IM VideoStudio.exe /T 2> NUL || cd .
+    )
+    add_dependencies(VideoStudio StopVideoStudio)
+endif()
 
 set(QT_QML_GENERATE_QMLLS_INI ON)
 set_source_files_properties(ui/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
@@ -36,6 +87,17 @@ qt_add_qml_module(VideoStudio
         ui/Main.qml
         ui/header/menus/HeaderMenu.qml
         ui/header/dialogs/ExportDialog.qml
+        ui/header/dialogs/CoverEditDialog.qml
+        ui/header/dialogs/CoverSelectDialog.qml
+        ui/header/dialogs/feature/CoverColorPicker.qml
+        ui/header/dialogs/feature/Divider.qml
+        ui/header/dialogs/feature/FeatureSlider.qml
+        ui/header/dialogs/feature/FeatureSwitch.qml
+        ui/header/dialogs/feature/GeglOperationsCard.qml
+        ui/header/dialogs/feature/InteractiveToolsCard.qml
+        ui/header/dialogs/feature/PaintDynamicsCard.qml
+        ui/header/dialogs/feature/PdbPluginsCard.qml
+        ui/header/dialogs/feature/XcfProjectCard.qml
         ui/header/utils/ExportUtils.js
         ui/header/dialogs/EmptyTimelineDialog.qml
         ui/header/menus/AppMenu.qml
@@ -81,6 +143,9 @@ qt_add_qml_module(VideoStudio
         ui/main_setting/components/ShortcutRow.qml
         ui/main_setting/components/SidebarItem.qml
     RESOURCES
+        assets/track-video.svg
+        assets/track-audio.svg
+        assets/track-subtitle.svg
         assets/ai-voice.svg
         assets/check.svg
         assets/chevron-down.svg
@@ -129,9 +194,23 @@ qt_add_qml_module(VideoStudio
         assets/volume-2.svg
         assets/volume-x.svg
         assets/more-horizontal.svg
+        assets/arrow-left.svg
+        assets/cpu.svg
+        assets/grid.svg
+        assets/sliders.svg
+        assets/star.svg
+        assets/sticker-boom.svg
+        assets/sticker-fire.svg
+        assets/sticker-pin.svg
+        assets/sticker-sparkle.svg
+        assets/trim-handle-left.svg
+        assets/trim-handle-right.svg
+        assets/type.svg
+        assets/x.svg
         assets/trending_effect.png
         assets/retro_effect.png
         assets/party_effect.png
+        assets/app_icon.png
     SOURCES
         core/actions/managers/ActionManager.cpp
         core/actions/managers/ActionManager.h
@@ -220,6 +299,70 @@ qt_add_qml_module(VideoStudio
         core/subtitle/SrtParser.h
         core/subtitle/SubtitleController.cpp
         core/subtitle/SubtitleController.h
+        core/editor/gegl/GeglGraphNode.cpp
+        core/editor/gegl/GeglGraphNode.h
+        core/editor/gegl/GeglOperationEngine.cpp
+        core/editor/gegl/GeglOperationEngine.h
+        core/editor/gegl/GeglOperationManager.cpp
+        core/editor/gegl/GeglOperationManager.h
+        core/editor/gegl/ColorAdjustmentOperation.cpp
+        core/editor/gegl/ColorAdjustmentOperation.h
+        core/editor/gegl/GenerativeFillOperation.cpp
+        core/editor/gegl/GenerativeFillOperation.h
+        core/editor/gegl/TransformDeformOperation.cpp
+        core/editor/gegl/TransformDeformOperation.h
+        core/editor/io/XcfFileStreamParser.cpp
+        core/editor/io/XcfFileStreamParser.h
+        core/editor/io/XcfProjectManager.cpp
+        core/editor/io/XcfProjectManager.h
+        core/editor/models/EditorImageModel.cpp
+        core/editor/models/EditorImageModel.h
+        core/editor/models/EditorLayerModel.cpp
+        core/editor/models/EditorLayerModel.h
+        core/editor/models/EditorUndoStack.cpp
+        core/editor/models/EditorUndoStack.h
+        core/editor/paint/PaintDynamicsEngine.cpp
+        core/editor/paint/PaintDynamicsEngine.h
+        core/editor/plugins/PdbProcedureManager.cpp
+        core/editor/plugins/PdbProcedureManager.h
+        core/editor/plugins/PdbRegistry.cpp
+        core/editor/plugins/PdbRegistry.h
+        core/editor/plugins/PluginIpcManager.cpp
+        core/editor/plugins/PluginIpcManager.h
+        core/editor/tools/SelectionToolController.cpp
+        core/editor/tools/SelectionToolController.h
+        core/editor/tools/ToolController.cpp
+        core/editor/tools/ToolController.h
+        core/editor/tools/ToolOptionsModel.cpp
+        core/editor/tools/ToolOptionsModel.h
+        core/editor/tools/TransformToolController.cpp
+        core/editor/tools/TransformToolController.h
+        core/editor/tools/UtilityToolController.cpp
+        core/editor/tools/UtilityToolController.h
+        core/editor/display/DisplayViewportModel.cpp
+        core/editor/display/DisplayViewportModel.h
+        core/editor/EditorBackendController.cpp
+        core/editor/EditorBackendController.h
+        core/effects/processors/GifFrameDecoder.cpp
+        core/effects/processors/GifFrameDecoder.h
+        core/effects/processors/GimpProcessor.cpp
+        core/effects/processors/GimpProcessor.h
+        core/setting/general/GeneralSettings.cpp
+        core/setting/general/GeneralSettings.h
+        core/setting/appearance/AppearanceSettings.cpp
+        core/setting/appearance/AppearanceSettings.h
+        core/setting/timeline/TimelineSettings.cpp
+        core/setting/timeline/TimelineSettings.h
+        core/setting/playback/PlaybackSettings.cpp
+        core/setting/playback/PlaybackSettings.h
+        core/setting/audio/AudioSettings.cpp
+        core/setting/audio/AudioSettings.h
+        core/setting/cache/CacheSettings.cpp
+        core/setting/cache/CacheSettings.h
+        core/setting/keyboard/KeyboardSettings.cpp
+        core/setting/keyboard/KeyboardSettings.h
+        core/setting/SettingsController.cpp
+        core/setting/SettingsController.h
 )
 
 target_link_libraries(VideoStudio PRIVATE
@@ -239,6 +382,9 @@ target_link_libraries(VideoStudio PRIVATE
     swresample
     swscale
     onnxruntime
+    dbghelp
+    lua_static
+    sol2
 )
 
 target_link_directories(VideoStudio PRIVATE
@@ -268,9 +414,34 @@ target_include_directories(VideoStudio PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/core/vocal/engine/ai
     ${CMAKE_CURRENT_SOURCE_DIR}/core/vocal/engine/dsp
     ${CMAKE_CURRENT_SOURCE_DIR}/core/vocal/engine/io
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/export/encoders
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/export/renderers
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/effects/processors
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/editor
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/editor/display
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/editor/gegl
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/editor/io
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/editor/models
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/editor/paint
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/editor/plugins
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/editor/tools
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/ffmpeg/include
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/onnxruntime/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/gimp_editor_backend
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/gimp_editor_backend/cpp_core
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/gimp
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/gimp/app
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/gimp/libgimp
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/gimp/libgimpbase
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/gimp/libgimpmath
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/gimp/libgimpcolor
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/gimp/libgimpconfig
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/gimp/libgimpmodule
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/gimp/libgimpthumb
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/gimp/libgimpwidgets
 )
+
+
 
 file(GLOB FFMPEG_RUNTIME_DLLS
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/ffmpeg/bin/*.dll"
@@ -328,21 +499,25 @@ add_custom_command(TARGET VideoStudio POST_BUILD
     COMMENT "Copying Qt runtime DLLs"
 )
 
-add_custom_command(TARGET VideoStudio POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${Qt6_DIR}/../../../qml/QtQuick/Dialogs"
-        "$<TARGET_FILE_DIR:VideoStudio>/QtQuick/Dialogs"
-    COMMENT "Copying QtQuick.Dialogs QML plugin"
-)
+if(EXISTS "${Qt6_DIR}/../../../qml/QtQuick/Dialogs")
+    add_custom_command(TARGET VideoStudio POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${Qt6_DIR}/../../../qml/QtQuick/Dialogs"
+            "$<TARGET_FILE_DIR:VideoStudio>/QtQuick/Dialogs"
+        COMMENT "Copying QtQuick.Dialogs QML plugin"
+    )
+endif()
 
-add_custom_command(TARGET VideoStudio POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory
-        "$<TARGET_FILE_DIR:VideoStudio>/multimedia"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${Qt6_DIR}/../../../plugins/multimedia"
-        "$<TARGET_FILE_DIR:VideoStudio>/multimedia"
-    COMMENT "Copying Qt Multimedia plugins"
-)
+if(EXISTS "${Qt6_DIR}/../../../plugins/multimedia")
+    add_custom_command(TARGET VideoStudio POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            "$<TARGET_FILE_DIR:VideoStudio>/multimedia"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${Qt6_DIR}/../../../plugins/multimedia"
+            "$<TARGET_FILE_DIR:VideoStudio>/multimedia"
+        COMMENT "Copying Qt Multimedia plugins"
+    )
+endif()
 
 add_executable(MediaItemProbe EXCLUDE_FROM_ALL
     tests/MediaItemProbe.cpp
@@ -381,6 +556,7 @@ add_executable(PlaybackProbe EXCLUDE_FROM_ALL
     core/playback/engines/AudioEngine.cpp
     core/playback/engines/PlaybackEngine.cpp
     core/effects/processors/EffectProcessor.cpp
+    core/effects/processors/GifFrameDecoder.cpp
 )
 
 target_link_libraries(PlaybackProbe PRIVATE
@@ -402,6 +578,7 @@ target_link_directories(PlaybackProbe PRIVATE
 target_include_directories(PlaybackProbe PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/core/playback
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/effects/processors
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/ffmpeg/include
 )
 
@@ -424,6 +601,60 @@ add_custom_command(TARGET PlaybackProbe POST_BUILD
         "${Qt6_DIR}/../../../plugins/multimedia"
         "$<TARGET_FILE_DIR:PlaybackProbe>/multimedia"
     COMMENT "Copying Qt Multimedia runtime for PlaybackProbe"
+)
+
+add_executable(ProgramMonitorProbe EXCLUDE_FROM_ALL
+    tests/ProgramMonitorProbe.cpp
+    core/playback/engines/AudioEngine.cpp
+    core/playback/engines/PlaybackEngine.cpp
+    core/effects/processors/EffectProcessor.cpp
+    core/effects/processors/GifFrameDecoder.cpp
+)
+
+target_link_libraries(ProgramMonitorProbe PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Qml
+    Qt6::Quick
+    Qt6::QuickControls2
+    Qt6::Multimedia
+    avcodec
+    avformat
+    avutil
+    swresample
+    swscale
+)
+
+target_link_directories(ProgramMonitorProbe PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/ffmpeg/lib
+)
+
+target_include_directories(ProgramMonitorProbe PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/playback
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/effects/processors
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/ffmpeg/include
+)
+
+if(FFMPEG_RUNTIME_DLLS)
+    add_custom_command(TARGET ProgramMonitorProbe POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${FFMPEG_RUNTIME_DLLS}
+            $<TARGET_FILE_DIR:ProgramMonitorProbe>
+        COMMENT "Copying FFmpeg runtime DLLs for ProgramMonitorProbe"
+    )
+endif()
+
+add_custom_command(TARGET ProgramMonitorProbe POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:Qt6::Multimedia>
+        $<TARGET_FILE_DIR:ProgramMonitorProbe>
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+        "$<TARGET_FILE_DIR:ProgramMonitorProbe>/multimedia"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${Qt6_DIR}/../../../plugins/multimedia"
+        "$<TARGET_FILE_DIR:ProgramMonitorProbe>/multimedia"
+    COMMENT "Copying Qt Multimedia runtime for ProgramMonitorProbe"
 )
 
 add_executable(TimelineProbe EXCLUDE_FROM_ALL
@@ -541,11 +772,11 @@ endif()
 
 set_property(TARGET VideoStudio PROPERTY WIN32_EXECUTABLE FALSE)
 add_custom_command(TARGET VideoStudio POST_BUILD
-    COMMAND "" -E copy_if_different
-        "/core/vocal/uvr_runner.py"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/core/vocal/uvr_runner.py"
         "$<TARGET_FILE_DIR:VideoStudio>/uvr_runner.py"
-    COMMAND "" -E copy_if_different
-        "/core/vocal/edge_tts_runner.py"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/core/vocal/edge_tts_runner.py"
         "$<TARGET_FILE_DIR:VideoStudio>/edge_tts_runner.py"
     COMMENT "Copying AI runners"
 )

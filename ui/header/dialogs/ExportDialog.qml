@@ -1,4 +1,5 @@
 pragma ComponentBehavior: Bound
+// qmllint disable
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs
@@ -66,7 +67,7 @@ Dialog {
             path = path.substring(7)
         return decodeURIComponent(path).replace(/\\/g, "/")
     }
-
+// qmllint disable
     title: "Export Media"
     modal: true
     anchors.centerIn: Overlay.overlay
@@ -162,10 +163,17 @@ Dialog {
         // Left Panel - Cover Image Placeholder
         Rectangle {
             Layout.preferredWidth: 260
-            Layout.fillHeight: true
+            Layout.preferredHeight: exportDialog.isVertical ? 462 : 146
+            Layout.alignment: Qt.AlignTop
             color: "#282828"
             radius: 8
             
+            CoverSelectDialog {
+                id: coverSelectDialog
+                timelineController: exportDialog.timelineController
+                parent: Overlay.overlay
+            }
+
             Button {
                 id: editCoverBtn
                 anchors.top: parent.top
@@ -175,6 +183,7 @@ Dialog {
                 text: "✎ Edit cover"
                 hoverEnabled: true
                 HoverHandler { cursorShape: Qt.PointingHandCursor }
+                onClicked: coverSelectDialog.open()
                 background: Rectangle {
                     color: "#000000"
                     opacity: 0.5

@@ -7,6 +7,7 @@ Rectangle {
     id: headersRoot
 
     property int trackHeight: 44
+    property int subtitleTrackHeight: 32
     property int markerHeight: 36
     property string timecode: "00:00:00:00"
     property string durationTimecode: "00:00:00:00"
@@ -25,6 +26,8 @@ Rectangle {
     signal settingsRequested(real x, real y)
 
     property var timelineController
+    property int videoTrackCount: timelineController ? timelineController.videoTrackCount : 0
+    property int effectTrackCount: timelineController ? timelineController.effectTrackCount : 0
 
     color: Theme.background
     clip: true
@@ -63,18 +66,58 @@ Rectangle {
             spacing: 0
 
             Repeater {
-                model: headersRoot.timelineController ? headersRoot.timelineController.videoTrackCount : 0
+                model: (headersRoot.timelineController && headersRoot.timelineController.hasSubtitleTrack) ? 1 : 0
+                delegate: TimelineTrackControl {
+                    id: subtitleTrackControl
+                    width: headersRoot.width
+                    height: headersRoot.subtitleTrackHeight
+                    isVideoTrack: false
+                    isSubtitleTrack: true
+                    hasTimelineClips: headersRoot.hasTimelineClips
+                    trackName: "T"
+                    timelineController: headersRoot.timelineController
+                    logicalTrackIndex: 0
+                    isTrackEmpty: false // Subtitle track is usually not considered empty if it exists
+
+                    Connections {
+                        target: headersRoot.timelineController.clipModel
+                        function onRowsInserted() {
+                            // Subtitle track doesn't need to check emptiness for now, but we can keep it consistent
+                        }
+                    }
+                }
+            }
+
+            Repeater {
+                model: headersRoot.effectTrackCount
+                delegate: TimelineTrackControl {
+                    id: effectTrackControl
+                    width: headersRoot.width
+                    height: headersRoot.subtitleTrackHeight
+                    isVideoTrack: false
+                    isSubtitleTrack: false
+                    isEffectTrack: true
+                    hasTimelineClips: headersRoot.hasTimelineClips
+                    trackName: "E" + (index + 1)
+                    timelineController: headersRoot.timelineController
+                    logicalTrackIndex: index
+                    isTrackEmpty: false
+                }
+            }
+
+            Repeater {
+                model: headersRoot.videoTrackCount
                 delegate: TimelineTrackControl {
                     id: videoTrackControl
                     width: headersRoot.width
                     height: headersRoot.trackHeight
                     isVideoTrack: true
                     hasTimelineClips: headersRoot.hasTimelineClips
-                    isMainTrack: index === headersRoot.timelineController.videoTrackCount - 1
-                    trackName: "V" + (headersRoot.timelineController.videoTrackCount - index)
+                    isMainTrack: logicalTrackIndex === 0
+                    trackName: "V" + (logicalTrackIndex + 1)
                     timelineController: headersRoot.timelineController
-                    logicalTrackIndex: index
-                    isTrackEmpty: headersRoot.timelineController.isTrackEmpty(true, logicalTrackIndex)
+                    logicalTrackIndex: headersRoot.videoTrackCount - 1 - index
+                    isTrackEmpty: headersRoot.timelineController ? headersRoot.timelineController.isTrackEmpty(true, logicalTrackIndex) : true
 
                     Connections {
                         target: headersRoot.timelineController.clipModel

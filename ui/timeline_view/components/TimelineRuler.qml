@@ -1,5 +1,5 @@
 pragma ComponentBehavior: Bound
-
+// qmllint disable
 import QtQuick
 import VideoStudioUI
 
@@ -86,9 +86,9 @@ Rectangle {
     Repeater {
         model: Math.ceil(rulerRoot.contentWidth / Math.max(1, rulerRoot.majorStepSeconds * rulerRoot.pixelsPerSecond)) + 2
 
-        Text {  
+        Text {
             required property int index
-            
+
             readonly property real seconds: index * rulerRoot.majorStepSeconds
             x: seconds * rulerRoot.pixelsPerSecond - rulerRoot.scrollOffset + 18
             y: 2
@@ -140,9 +140,10 @@ Rectangle {
 
     MouseArea {
         anchors.fill: parent
+        enabled: rulerRoot.hasTimelineClips
         acceptedButtons: Qt.LeftButton
         hoverEnabled: true
-        cursorShape: Math.abs(mouseX - rulerRoot.playheadX) < 10 || pressed ? Qt.SizeHorCursor : Qt.ArrowCursor
+        cursorShape: Math.abs(mouseX - rulerRoot.playheadX) < 10 || pressed ? Qt.SizeAllCursor : Qt.ArrowCursor
         onPressed: function (mouse) {
             rulerRoot.seekPreview(rulerRoot.secondsFromX(mouse.x));
         }

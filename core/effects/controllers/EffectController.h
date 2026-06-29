@@ -65,7 +65,8 @@ private slots:
 
 private:
     ClipEffects currentEffects() const;
-    ClipEffects presetEffects(const QString& presetName) const;
+    ClipEffects presetEffects(const QString& presetName, const QString& gifPath = {}) const;
+    void collectActiveGifOverlays(double timelineSeconds) const;
     ClipEffects combinedEffectsAt(double timelineSeconds, int baseClipRow) const;
     void loadClipEffects(int row);
     void saveClipEffects(int row);

@@ -10,6 +10,7 @@
 #include <QVariantMap>
 #include <QUndoStack>
 #include <QtQml/qqmlregistration.h>
+#include <QTimer>
 
 class TimelineController : public QObject
 {
@@ -24,9 +25,12 @@ class TimelineController : public QObject
     Q_PROPERTY(int activeIsolationProgress READ activeIsolationProgress NOTIFY activeIsolationProgressChanged)
     Q_PROPERTY(bool isGeneratingAIVoice READ isGeneratingAIVoice NOTIFY isGeneratingAIVoiceChanged)
     Q_PROPERTY(int activeAIVoiceProgress READ activeAIVoiceProgress NOTIFY activeAIVoiceProgressChanged)
+    Q_PROPERTY(bool hasSubtitleTrack READ hasSubtitleTrack NOTIFY timelineChanged)
+    Q_PROPERTY(bool hasEffectTrack READ hasEffectTrack NOTIFY timelineChanged)
     
     Q_PROPERTY(int videoTrackCount READ videoTrackCount NOTIFY trackCountsChanged)
     Q_PROPERTY(int audioTrackCount READ audioTrackCount NOTIFY trackCountsChanged)
+    Q_PROPERTY(int effectTrackCount READ effectTrackCount NOTIFY trackCountsChanged)
 
 public:
     explicit TimelineController(QObject *parent = nullptr);
@@ -41,9 +45,12 @@ public:
     int activeIsolationProgress() const { return m_activeIsolationProgress; }
     bool isGeneratingAIVoice() const { return m_activeAIVoiceCount > 0; }
     int activeAIVoiceProgress() const { return m_activeAIVoiceProgress; }
+    bool hasSubtitleTrack() const;
+    bool hasEffectTrack() const;
 
     int videoTrackCount() const { return m_videoTrackCount; }
     int audioTrackCount() const { return m_audioTrackCount; }
+    int effectTrackCount() const { return m_effectTrackCount; }
     
     Q_INVOKABLE void cleanupEmptyTracks();
 
@@ -56,7 +63,8 @@ public:
                             double durationSeconds,
                             bool hasVideo,
                             double startSeconds,
-                            int trackIndex);
+                            int trackIndex,
+                            bool allowOverlap = false);
 
     /**
      * @brief Adds a rich media asset (video with linked audio) to the timeline.
@@ -68,7 +76,8 @@ public:
                                   bool hasVideo,
                                   bool hasAudio,
                                   double startSeconds,
-                                  int videoTrackIndex);
+                                  int videoTrackIndex,
+                                  bool allowOverlap = false);
 
     /**
      * @brief Adds a subtitle block to the dedicated subtitle track.
@@ -77,7 +86,8 @@ public:
                                     const QString& srtFilePath,
                                     double startSeconds,
                                     double durationSeconds,
-                                    int trackIndex);
+                                    int trackIndex,
+                                    bool allowOverlap = false);
 
     /**
      * @brief Deletes a single clip at the specified row.
@@ -105,11 +115,14 @@ public:
      * @brief Moves a clip to a new start time and track. 
      * If linked is true, moves all linked audio/video clips synchronously.
      */
-    Q_INVOKABLE bool moveClip(int row, double startSeconds, int trackIndex, bool linked);
+    Q_INVOKABLE bool moveClip(int row, double startSeconds, int trackIndex, bool linked, bool allowOverlap = false);
     /**
      * @brief Moves multiple selected clips by a delta in time and tracks.
      */
-    Q_INVOKABLE bool moveSelectedClips(double deltaSeconds, int deltaTrackIndex, bool linked);
+    Q_INVOKABLE bool moveSelectedClips(double deltaSeconds, int deltaTrackIndex, bool linked, bool allowOverlap = false);
+    
+    bool isTrackOccupied(int trackIndex, double startSeconds, double durationSeconds, int ignoreRow = -1) const;
+    int findAvailableTrack(int baseTrackIndex, double startSeconds, double durationSeconds, int ignoreRow = -1) const;
     
 
     Q_INVOKABLE bool isTrackEmpty(bool isVideo, int trackIndex) const;
@@ -188,6 +201,7 @@ public:
 
 private:
     void calculateTrackCounts();
+    QTimer* m_updateTimer = nullptr;
     int m_playheadPosition = 0;
     TimelineClipModel* m_clipModel = nullptr;
     QUndoStack* m_undoStack = nullptr;
@@ -200,8 +214,9 @@ private:
     int m_activeAIVoiceCount = 0;
     int m_activeAIVoiceProgress = -1;
     
-    int m_videoTrackCount=3;
-    int m_audioTrackCount=3;
+    int m_videoTrackCount=1;
+    int m_audioTrackCount=1;
+    int m_effectTrackCount=0;
 
     QMap<int, bool> m_videoTrackLocked;
     QMap<int, bool> m_videoTrackHidden;

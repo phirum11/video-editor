@@ -66,6 +66,8 @@ public:
     void updateClipIsolationProgress(int row, int progress);
     void setClipMuted(int row, bool muted);
 
+    Q_INVOKABLE void compactTracks();
+
     ClipEffects clipEffectsAt(int row) const;
     void updateClipEffects(int row, const ClipEffects& effects);
 
@@ -85,7 +87,7 @@ public:
 
 private:
     bool isValidRow(int row) const;
-    void updateRow(int row);
+    void updateRow(int row, const QVector<int>& roles = QVector<int>());
 
     QVector<TimelineClip> m_clips;
 };

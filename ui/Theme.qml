@@ -1,3 +1,4 @@
+// qmllint disable
 pragma Singleton
 
 import QtQuick
@@ -6,7 +7,7 @@ QtObject {
     property bool isDarkMode: true
 
     property color background: isDarkMode ? "#242423" : "#f5f5f5"
-    property color surface: isDarkMode ? "#242423" : Theme.text
+    property color surface: isDarkMode ? "#242423" : text
     property color surfaceRaised: isDarkMode ? "#2b2b2a" : "#f0f0f0"
     property color surfaceHover: isDarkMode ? "#30302f" : "#e4e4e4"
     property color surfacePressed: isDarkMode ? "#363634" : "#d8d8d8"

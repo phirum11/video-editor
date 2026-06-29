@@ -18,6 +18,11 @@ struct ColorEffectData {
     double brightness = 0.0;
     double contrast = 100.0;
     double saturation = 100.0;
+    QString shadowsColor = "#808080";
+    QString midtonesColor = "#808080";
+    QString highlightsColor = "#808080";
+    double vignetteAmount = 0.0;
+    double vignetteFeather = 50.0;
 };
 
 struct BlurEffectData {
@@ -37,12 +42,38 @@ struct StylizeEffectData {
     // Stubs for future properties
     QString styleName = "None";
     double intensity = 100.0;
+    QString gifFilePath;  // Path to animated GIF overlay (empty = no overlay)
+    
+    bool audioVisualizerEnabled = false;
+    double audioVisualizerBands = 32.0;
+    double audioVisualizerSmoothing = 50.0;
+
+    bool dropShadowEnabled = false;
+    double dropShadowDistance = 10.0;
+    double dropShadowOpacity = 50.0;
+    double dropShadowSoftness = 20.0;
+
+    bool glitchEnabled = false;
+    double glitchWaveWarp = 0.0;
+    double glitchRGBSplit = 0.0;
+    double glitchLensDistortion = 0.0;
 };
 
 struct AudioEffectData {
     // Stubs for future properties
-    double volume = 100.0;
+    double volume = 0.0;
     double pan = 0.0;
+    double pitch = 0.0;
+    double eq32 = 0.0;
+    double eq64 = 0.0;
+    double eq125 = 0.0;
+    double eq250 = 0.0;
+    double eq500 = 0.0;
+    double eq1k = 0.0;
+    double eq2k = 0.0;
+    double eq4k = 0.0;
+    double eq8k = 0.0;
+    double eq16k = 0.0;
 };
 
 struct ChromaKeyEffectData {

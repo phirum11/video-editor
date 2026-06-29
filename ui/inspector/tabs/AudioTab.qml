@@ -1,5 +1,4 @@
-// qmllint disable unqualified
-// qmllint disable missing-property
+// qmllint disable
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -212,7 +211,8 @@ ScrollView {
                                 Layout.fillWidth: true
                                 from: -12
                                 to: 12
-                                value: 0
+                                value: effectController ? effectController.audio.pitch : 0
+                                onValueChanged: { if(effectController && effectController.audio.pitch !== value) effectController.audio.pitch = value }
                                 
                                 background: Rectangle {
                                     x: pitchSlider.leftPadding
@@ -430,6 +430,7 @@ ScrollView {
             target: effectController ? effectController.audio : null
             function onVolumeChanged() { volumeSlider.value = effectController.audio.volume }
             function onPanChanged() { panSliderInternal.value = effectController.audio.pan }
+            function onPitchChanged() { pitchSlider.value = effectController.audio.pitch }
         }
         
         Item { Layout.fillHeight: true }

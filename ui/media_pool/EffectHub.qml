@@ -1,12 +1,12 @@
 pragma ComponentBehavior: Bound
-
+// qmllint disable
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Effects
-// qmllint disable import
+
 import VideoStudio.Models 1.0
-// qmllint enable import
+
 import VideoStudioUI
 
 Rectangle {
@@ -28,7 +28,7 @@ Rectangle {
     }
     
     Component.onCompleted: loadEffects("All")
-    
+    // qmllint disable
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
@@ -79,7 +79,7 @@ Rectangle {
                 }
             }
         }
-        
+        // qmllint disable
         // Split View (Sidebar + Grid)
         RowLayout {
             Layout.fillWidth: true
@@ -96,11 +96,13 @@ Rectangle {
                 clip: true
                 
                 ScrollView {
+                    id: categoriesScrollView
                     anchors.fill: parent
                     ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                    clip: true
                     
                     ColumnLayout {
-                        width: parent.width
+                        width: categoriesScrollView.availableWidth
                         spacing: 2
                         
                         CategoryButton { title: "All" }
@@ -176,8 +178,8 @@ Rectangle {
                             Drag.source: effectDragProxy
                             Drag.keys: ["videoStudio/effect"]
                             Drag.supportedActions: Qt.CopyAction
-                            Drag.hotSpot.x: width / 2
-                            Drag.hotSpot.y: height / 2
+                            Drag.hotSpot.x: thumbMouse.pressPos.x
+                            Drag.hotSpot.y: thumbMouse.pressPos.y
 
                             AnimatedImage {
                                 anchors.fill: parent
@@ -291,6 +293,12 @@ Rectangle {
                                 drag.threshold: 8
                                 preventStealing: true
 
+                                property point pressPos: Qt.point(width / 2, height / 2)
+
+                                onPressed: (mouse) => {
+                                    pressPos = Qt.point(mouse.x, mouse.y)
+                                }
+
                                 onPositionChanged: {
                                     if (drag.active && !effectDragProxy.isDragging) {
                                         effectDragProxy.startOverlayPos = effectThumb.mapToItem(Overlay.overlay, 0, 0)
@@ -335,15 +343,35 @@ Rectangle {
         id: categoryButtonRoot
         property string title: ""
         
+        implicitWidth: 100
+        implicitHeight: 32
         Layout.fillWidth: true
         Layout.preferredHeight: 32
+        Layout.leftMargin: 6
+        Layout.rightMargin: 6
+        radius: 6
         color: effectHubRoot.currentCategory === categoryButtonRoot.title ? Theme.surfacePressed : (catMouse.containsMouse ? Theme.surfaceHover : "transparent")
         
+        Behavior on color {
+            ColorAnimation { duration: 150; easing.type: Easing.OutQuad }
+        }
+        
         Rectangle {
+            anchors.left: parent.left
+            anchors.leftMargin: 2
+            anchors.verticalCenter: parent.verticalCenter
             width: 3
-            height: parent.height
+            height: effectHubRoot.currentCategory === categoryButtonRoot.title ? parent.height - 12 : 0
+            radius: 1.5
             color: "#66aacf"
-            visible: effectHubRoot.currentCategory === categoryButtonRoot.title
+            opacity: effectHubRoot.currentCategory === categoryButtonRoot.title ? 1.0 : 0.0
+            
+            Behavior on height {
+                NumberAnimation { duration: 150; easing.type: Easing.OutQuad }
+            }
+            Behavior on opacity {
+                NumberAnimation { duration: 150; easing.type: Easing.OutQuad }
+            }
         }
         
         Text {
@@ -351,15 +379,20 @@ Rectangle {
             anchors.leftMargin: 16
             anchors.verticalCenter: parent.verticalCenter
             text: categoryButtonRoot.title
-            color: effectHubRoot.currentCategory === categoryButtonRoot.title ? Theme.text : "#aeb9be"
+            color: effectHubRoot.currentCategory === categoryButtonRoot.title ? Theme.text : (catMouse.containsMouse ? Theme.text : "#aeb9be")
             font.pixelSize: 13
             font.bold: effectHubRoot.currentCategory === categoryButtonRoot.title
+            
+            Behavior on color {
+                ColorAnimation { duration: 150; easing.type: Easing.OutQuad }
+            }
         }
         
         MouseArea {
             id: catMouse
             anchors.fill: parent
             hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
             onClicked: effectHubRoot.loadEffects(categoryButtonRoot.title)
         }
     }

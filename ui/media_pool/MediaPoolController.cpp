@@ -37,6 +37,19 @@ void MediaPoolController::setSearchQuery(const QString& query)
     }
 }
 
+int MediaPoolController::mediaTypeFilter() const
+{
+    return m_mediaTypeFilter;
+}
+
+void MediaPoolController::setMediaTypeFilter(int filter)
+{
+    if (m_mediaTypeFilter != filter) {
+        m_mediaTypeFilter = filter;
+        emit mediaTypeFilterChanged();
+    }
+}
+
 void MediaPoolController::importMediaFiles()
 {
     QStringList files = QFileDialog::getOpenFileNames(
@@ -140,8 +153,11 @@ bool MediaPoolController::addMediaPath(const QString& filePath)
     }
 
     try {
+        qDebug() << "MediaPoolController::addMediaPath - Creating MediaItem for:" << trimmedPath;
         auto item = std::make_shared<MediaItem>(trimmedPath);
+        qDebug() << "MediaPoolController::addMediaPath - MediaItem created. hasVideo=" << item->hasVideo() << "hasAudio=" << item->hasAudio();
         m_mediaModel->addMediaItem(item);
+        qDebug() << "MediaPoolController::addMediaPath - Added to MediaListModel.";
         qDebug() << "Imported media:" << item->fileName();
         return true;
     } catch (const std::exception& e) {

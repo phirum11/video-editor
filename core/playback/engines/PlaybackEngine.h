@@ -3,6 +3,8 @@
 #include "core/playback/engines/AudioEngine.h"
 #include "core/effects/models/EffectData.h"
 
+#include <QPair>
+#include <QVector>
 #include <QByteArray>
 #include <QElapsedTimer>
 #include <QImage>
@@ -82,6 +84,7 @@ public:
     Q_INVOKABLE void setIsMuted(bool muted);
 
     void setClipEffects(const ClipEffects& effects);
+    void setActiveGifOverlays(const QVector<QPair<QString, double>>& gifPathsAndElapsed);
 
 signals:
     void clipChanged();
@@ -145,6 +148,7 @@ private:
 
     QImage m_frame;
     QImage m_processedFrame;
+    bool m_frameDirty = false;
     ClipEffects m_currentEffects;
     QTimer m_timer;
     QElapsedTimer m_clock;
@@ -153,6 +157,9 @@ private:
     QColor m_backgroundColor = QColor(QStringLiteral("#0b1115"));
     AudioEngine m_audioEngine;
     QByteArray m_pendingAudio;
+
+    // Active GIF overlays: (filePath, elapsedSeconds)
+    QVector<QPair<QString, double>> m_activeGifOverlays;
 
     AVFormatContext* m_videoFormat = nullptr;
     AVCodecContext* m_videoCodec = nullptr;

@@ -4,6 +4,7 @@
 #include <QPainter>
 #include <QDebug>
 #include "core/effects/processors/EffectProcessor.h"
+#include "core/effects/processors/GifFrameDecoder.h"
 
 #include <algorithm>
 #include <cmath>
@@ -246,6 +247,7 @@ void PlaybackEngine::clearFrameToBlack()
     if (!m_frame.isNull() || !m_processedFrame.isNull()) {
         m_frame = {};
         m_processedFrame = {};
+        m_frameDirty = false;
         m_lastVideoFrameSeconds = -1.0;
         update();
     }
@@ -344,6 +346,21 @@ void PlaybackEngine::setBackgroundColor(const QColor& color)
 void PlaybackEngine::paint(QPainter* painter)
 {
     painter->fillRect(boundingRect(), m_backgroundColor);
+    if (m_frameDirty && !m_frame.isNull()) {
+        m_processedFrame = EffectProcessor::processImage(m_frame, m_currentEffects);
+        for (const auto& overlay : m_activeGifOverlays) {
+            GifFrameDecoder* decoder = GifFrameDecoder::get(overlay.first);
+            if (decoder && decoder->isValid()) {
+                const QImage gifFrame = decoder->frameAt(overlay.second);
+                if (!gifFrame.isNull()) {
+                    m_processedFrame = EffectProcessor::compositeGifOverlay(
+                        m_processedFrame, gifFrame);
+                }
+            }
+        }
+        m_frameDirty = false;
+    }
+
     if (m_processedFrame.isNull()) {
         return;
     }
@@ -370,6 +387,11 @@ bool PlaybackEngine::loadClip(const QString& name,
                               bool expectedVideo,
                               const QString& originalPath)
 {
+    qWarning() << "PlaybackEngine::loadClip" << name << path
+               << "expectedVideo=" << expectedVideo
+               << "current=" << m_filePath
+               << "hasVideo=" << m_hasVideo << "hasAudio=" << m_hasAudio;
+
     const QString targetVideoPath = originalPath.isEmpty() ? path : originalPath;
     const bool requiresReopen = (m_filePath != path || m_videoFilePath != targetVideoPath || m_expectedVideo != expectedVideo || (!m_hasVideo && !m_hasAudio));
 
@@ -423,14 +445,24 @@ bool PlaybackEngine::loadClip(const QString& name,
         m_frame = {};
         m_processedFrame = {};
         update();
-        av_packet_unref(m_videoPacket);
-        av_frame_unref(m_videoFrame);
+        if (m_videoPacket) {
+            av_packet_unref(m_videoPacket);
+        }
+        if (m_videoFrame) {
+            av_frame_unref(m_videoFrame);
+        }
         m_videoEof = false;
         
-        av_packet_unref(m_audioPacket);
-        av_frame_unref(m_audioFrame);
+        if (m_audioPacket) {
+            av_packet_unref(m_audioPacket);
+        }
+        if (m_audioFrame) {
+            av_frame_unref(m_audioFrame);
+        }
         m_pendingAudio.clear();
-        swr_init(m_swr);
+        if (m_swr) {
+            swr_init(m_swr);
+        }
         m_audioEof = false;
     }
 
@@ -717,30 +749,43 @@ void PlaybackEngine::closeDecoders()
     }
     if (m_swr) {
         swr_free(&m_swr);
+        m_swr = nullptr;
     }
+    
+    // Free packets and frames BEFORE contexts!
     if (m_videoPacket) {
         av_packet_free(&m_videoPacket);
+        m_videoPacket = nullptr;
     }
     if (m_audioPacket) {
         av_packet_free(&m_audioPacket);
+        m_audioPacket = nullptr;
     }
     if (m_videoFrame) {
         av_frame_free(&m_videoFrame);
+        m_videoFrame = nullptr;
     }
     if (m_audioFrame) {
         av_frame_free(&m_audioFrame);
+        m_audioFrame = nullptr;
     }
+    
+    // Then free contexts
     if (m_videoCodec) {
         avcodec_free_context(&m_videoCodec);
-    }
-    if (m_audioCodec) {
-        avcodec_free_context(&m_audioCodec);
+        m_videoCodec = nullptr;
     }
     if (m_videoFormat) {
         avformat_close_input(&m_videoFormat);
+        m_videoFormat = nullptr;
+    }
+    if (m_audioCodec) {
+        avcodec_free_context(&m_audioCodec);
+        m_audioCodec = nullptr;
     }
     if (m_audioFormat) {
         avformat_close_input(&m_audioFormat);
+        m_audioFormat = nullptr;
     }
 
     m_videoStreamIndex = -1;
@@ -917,8 +962,8 @@ bool PlaybackEngine::seekVideo(double seconds, bool publishFrame)
     }
 
     avcodec_flush_buffers(m_videoCodec);
-    av_packet_unref(m_videoPacket);
-    av_frame_unref(m_videoFrame);
+    if (m_videoPacket) av_packet_unref(m_videoPacket);
+    if (m_videoFrame)  av_frame_unref(m_videoFrame);
     m_videoEof = false;
 
     QImage bestImage;
@@ -971,10 +1016,10 @@ bool PlaybackEngine::seekAudio(double seconds)
     }
 
     avcodec_flush_buffers(m_audioCodec);
-    av_packet_unref(m_audioPacket);
-    av_frame_unref(m_audioFrame);
+    if (m_audioPacket) av_packet_unref(m_audioPacket);
+    if (m_audioFrame)  av_frame_unref(m_audioFrame);
     m_pendingAudio.clear();
-    swr_init(m_swr);
+    if (m_swr) swr_init(m_swr);
     m_audioEof = false;
     m_audioSkipUntilSeconds = std::max(0.0, seconds);
     return true;
@@ -1279,8 +1324,8 @@ void PlaybackEngine::setFrame(QImage image, double timestampSeconds)
     }
 
     m_frame = std::move(image);
-    m_processedFrame = EffectProcessor::processImage(m_frame, m_currentEffects);
-    
+    m_frameDirty = true;
+
     if (timestampSeconds >= 0.0) {
         m_lastVideoFrameSeconds = timestampSeconds;
     }
@@ -1291,7 +1336,18 @@ void PlaybackEngine::setClipEffects(const ClipEffects& effects)
 {
     m_currentEffects = effects;
     if (!m_frame.isNull()) {
-        m_processedFrame = EffectProcessor::processImage(m_frame, m_currentEffects);
+        m_frameDirty = true;
+        update();
+    }
+}
+
+void PlaybackEngine::setActiveGifOverlays(const QVector<QPair<QString, double>>& gifPathsAndElapsed)
+{
+    m_activeGifOverlays = gifPathsAndElapsed;
+
+    // Re-render with new overlays if we have a frame
+    if (!m_frame.isNull()) {
+        m_frameDirty = true;
         update();
     }
 }

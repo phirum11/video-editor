@@ -55,6 +55,11 @@ void mergeEffectLayer(ClipEffects& base, const ClipEffects& layer)
     if (differs(layer.color.saturation, defaults.color.saturation)) {
         base.color.saturation = std::clamp(base.color.saturation * (layer.color.saturation / 100.0), 0.0, 300.0);
     }
+    if (differs(layer.color.shadowsColor, defaults.color.shadowsColor)) base.color.shadowsColor = layer.color.shadowsColor;
+    if (differs(layer.color.midtonesColor, defaults.color.midtonesColor)) base.color.midtonesColor = layer.color.midtonesColor;
+    if (differs(layer.color.highlightsColor, defaults.color.highlightsColor)) base.color.highlightsColor = layer.color.highlightsColor;
+    if (differs(layer.color.vignetteAmount, defaults.color.vignetteAmount)) base.color.vignetteAmount = layer.color.vignetteAmount;
+    if (differs(layer.color.vignetteFeather, defaults.color.vignetteFeather)) base.color.vignetteFeather = layer.color.vignetteFeather;
 
     if (layer.blur.radius > 0.0) {
         base.blur = layer.blur;
@@ -63,13 +68,37 @@ void mergeEffectLayer(ClipEffects& base, const ClipEffects& layer)
     if (differs(layer.stylize.styleName, defaults.stylize.styleName)) {
         base.stylize = layer.stylize;
     }
+    if (layer.stylize.audioVisualizerEnabled || layer.stylize.dropShadowEnabled || layer.stylize.glitchEnabled || layer.stylize.glitchWaveWarp > 0 || layer.stylize.glitchRGBSplit > 0 || layer.stylize.glitchLensDistortion > 0) {
+        base.stylize.audioVisualizerEnabled = layer.stylize.audioVisualizerEnabled;
+        base.stylize.audioVisualizerBands = layer.stylize.audioVisualizerBands;
+        base.stylize.audioVisualizerSmoothing = layer.stylize.audioVisualizerSmoothing;
+        base.stylize.dropShadowEnabled = layer.stylize.dropShadowEnabled;
+        base.stylize.dropShadowDistance = layer.stylize.dropShadowDistance;
+        base.stylize.dropShadowOpacity = layer.stylize.dropShadowOpacity;
+        base.stylize.dropShadowSoftness = layer.stylize.dropShadowSoftness;
+        base.stylize.glitchEnabled = layer.stylize.glitchEnabled;
+        base.stylize.glitchWaveWarp = layer.stylize.glitchWaveWarp;
+        base.stylize.glitchRGBSplit = layer.stylize.glitchRGBSplit;
+        base.stylize.glitchLensDistortion = layer.stylize.glitchLensDistortion;
+    }
 
     if (differs(layer.audio.volume, defaults.audio.volume)) {
-        base.audio.volume = std::clamp(base.audio.volume * (layer.audio.volume / 100.0), 0.0, 300.0);
+        base.audio.volume = std::clamp(base.audio.volume + layer.audio.volume, -60.0, 12.0);
     }
     if (differs(layer.audio.pan, defaults.audio.pan)) {
         base.audio.pan = std::clamp(base.audio.pan + layer.audio.pan, -100.0, 100.0);
     }
+    if (differs(layer.audio.pitch, defaults.audio.pitch)) base.audio.pitch = layer.audio.pitch;
+    if (differs(layer.audio.eq32, defaults.audio.eq32)) base.audio.eq32 = layer.audio.eq32;
+    if (differs(layer.audio.eq64, defaults.audio.eq64)) base.audio.eq64 = layer.audio.eq64;
+    if (differs(layer.audio.eq125, defaults.audio.eq125)) base.audio.eq125 = layer.audio.eq125;
+    if (differs(layer.audio.eq250, defaults.audio.eq250)) base.audio.eq250 = layer.audio.eq250;
+    if (differs(layer.audio.eq500, defaults.audio.eq500)) base.audio.eq500 = layer.audio.eq500;
+    if (differs(layer.audio.eq1k, defaults.audio.eq1k)) base.audio.eq1k = layer.audio.eq1k;
+    if (differs(layer.audio.eq2k, defaults.audio.eq2k)) base.audio.eq2k = layer.audio.eq2k;
+    if (differs(layer.audio.eq4k, defaults.audio.eq4k)) base.audio.eq4k = layer.audio.eq4k;
+    if (differs(layer.audio.eq8k, defaults.audio.eq8k)) base.audio.eq8k = layer.audio.eq8k;
+    if (differs(layer.audio.eq16k, defaults.audio.eq16k)) base.audio.eq16k = layer.audio.eq16k;
 
     if (layer.chromaKey.enabled) {
         base.chromaKey = layer.chromaKey;
@@ -203,7 +232,7 @@ ClipEffects EffectController::currentEffects() const
     return effects;
 }
 
-ClipEffects EffectController::presetEffects(const QString& presetName) const
+ClipEffects EffectController::presetEffects(const QString& presetName, const QString& gifPath) const
 {
     ClipEffects effects;
 
@@ -238,6 +267,11 @@ ClipEffects EffectController::presetEffects(const QString& presetName) const
     } else {
         effects.stylize.styleName = presetName;
         effects.stylize.intensity = 75.0;
+    }
+
+    // Always store the GIF overlay path if provided
+    if (!gifPath.isEmpty()) {
+        effects.stylize.gifFilePath = normalizeLocalPath(gifPath);
     }
 
     return effects;
@@ -349,10 +383,11 @@ int EffectController::addPresetToTimeline(const QString& presetName,
         safeDuration = std::max(0.25, m_timelineController->clipEndSeconds(baseRow) - safeStart);
     }
 
+    const QString normalizedGifPath = normalizeLocalPath(thumbnailPath);
     const int row = m_timelineController->addEffectClip(
         presetName,
-        normalizeLocalPath(thumbnailPath),
-        presetEffects(presetName),
+        normalizedGifPath,
+        presetEffects(presetName, normalizedGifPath),
         safeStart,
         safeDuration,
         trackIndex
@@ -379,6 +414,39 @@ void EffectController::refreshPlaybackEffects(double timelineSeconds, int baseCl
     }
 
     m_playbackEngine->setClipEffects(combinedEffectsAt(timelineSeconds, baseClipRow));
+    collectActiveGifOverlays(timelineSeconds);
+}
+
+void EffectController::collectActiveGifOverlays(double timelineSeconds) const
+{
+    if (!m_playbackEngine || !m_timelineController || !m_clipModel) {
+        return;
+    }
+
+    QVector<QPair<QString, double>> gifOverlays;
+
+    for (int row = 0; row < m_timelineController->clipCount(); ++row) {
+        const TimelineClip clip = m_clipModel->clipAt(row);
+        if (!clip.isEffect || !m_timelineController->clipContains(row, timelineSeconds)) {
+            continue;
+        }
+
+        const int trackIndex = clip.trackIndex >= 100 ? clip.trackIndex - 100 : clip.trackIndex;
+        if (m_timelineController->isTrackHidden(true, trackIndex)) {
+            continue;
+        }
+
+        QString gifPath = clip.effects.stylize.gifFilePath;
+        if (gifPath.isEmpty() || gifPath.contains(QStringLiteral("thumbnails"), Qt::CaseInsensitive)) {
+            continue;
+        }
+
+        // Compute elapsed time within this effect clip
+        const double elapsedInEffect = timelineSeconds - clip.startSeconds;
+        gifOverlays.append({gifPath, elapsedInEffect});
+    }
+
+    m_playbackEngine->setActiveGifOverlays(gifOverlays);
 }
 
 void EffectController::resetAll()

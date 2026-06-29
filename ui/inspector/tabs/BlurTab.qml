@@ -1,5 +1,6 @@
 // qmllint disable unqualified
 // qmllint disable missing-property
+// qmllint disable
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls

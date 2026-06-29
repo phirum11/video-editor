@@ -85,6 +85,40 @@ bool TimelineClipModel::moveClip(int row, double startSeconds, int trackIndex, b
     const double nextStart = std::max(0.0, startSeconds);
     const double startDelta = nextStart - original.startSeconds;
     const QString linkGroup = original.linkGroupId;
+    const int targetTrack = std::max(0, trackIndex);
+
+    // Check if targetTrack is occupied by any other clip that overlaps in time
+    bool isOccupied = false;
+    double endSeconds = nextStart + original.durationSeconds;
+    const double eps = 0.001;
+    for (int i = 0; i < m_clips.size(); ++i) {
+        if (i == row) continue;
+        if (linked && !linkGroup.isEmpty() && m_clips[i].linkGroupId == linkGroup) continue;
+        
+        if (m_clips[i].trackIndex == targetTrack) {
+            double clipEnd = m_clips[i].startSeconds + m_clips[i].durationSeconds;
+            if (nextStart + eps < clipEnd && endSeconds - eps > m_clips[i].startSeconds) {
+                isOccupied = true;
+                break;
+            }
+        }
+    }
+
+    // If occupied, shift all existing clips on targetTrack and above UP by 1 to make room
+    if (isOccupied) {
+        for (int i = 0; i < m_clips.size(); ++i) {
+            if (i == row) continue;
+            if (linked && !linkGroup.isEmpty() && m_clips[i].linkGroupId == linkGroup) continue;
+            
+            if (m_clips[i].trackIndex >= targetTrack && m_clips[i].trackIndex < 100) {
+                m_clips[i].trackIndex++;
+                updateRow(i, {TrackIndexRole});
+            } else if (m_clips[i].trackIndex >= targetTrack && m_clips[i].trackIndex >= 300) {
+                m_clips[i].trackIndex++;
+                updateRow(i, {TrackIndexRole});
+            }
+        }
+    }
 
     if (linked && !linkGroup.isEmpty()) {
         for (int i = 0; i < m_clips.size(); ++i) {
@@ -94,7 +128,7 @@ bool TimelineClipModel::moveClip(int row, double startSeconds, int trackIndex, b
 
             m_clips[i].startSeconds = std::max(0.0, m_clips[i].startSeconds + startDelta);
             if (i == row && trackIndex >= 0) {
-                m_clips[i].trackIndex = std::max(0, trackIndex);
+                m_clips[i].trackIndex = targetTrack;
             }
             updateRow(i);
         }
@@ -103,7 +137,7 @@ bool TimelineClipModel::moveClip(int row, double startSeconds, int trackIndex, b
 
     m_clips[row].startSeconds = nextStart;
     if (trackIndex >= 0) {
-        m_clips[row].trackIndex = std::max(0, trackIndex);
+        m_clips[row].trackIndex = targetTrack;
     }
     updateRow(row);
     return true;
@@ -130,6 +164,9 @@ bool TimelineClipModel::trimClip(int row, double newStartSeconds, double newDura
             m_clips[i].startSeconds = std::max(0.0, m_clips[i].startSeconds + startDelta);
             m_clips[i].durationSeconds = std::max(0.1, m_clips[i].durationSeconds + durationDelta);
             m_clips[i].sourceInPoint = std::max(0.0, m_clips[i].sourceInPoint + inPointDelta);
+            if (m_clips[i].isEffect || (!m_clips[i].hasVideo && !m_clips[i].hasAudio)) {
+                m_clips[i].sourceDuration = m_clips[i].durationSeconds;
+            }
             updateRow(i);
         }
         return true;
@@ -138,6 +175,9 @@ bool TimelineClipModel::trimClip(int row, double newStartSeconds, double newDura
     m_clips[row].startSeconds = std::max(0.0, newStartSeconds);
     m_clips[row].durationSeconds = std::max(0.1, newDurationSeconds);
     m_clips[row].sourceInPoint = std::max(0.0, newInPoint);
+    if (m_clips[row].isEffect || (!m_clips[row].hasVideo && !m_clips[row].hasAudio)) {
+        m_clips[row].sourceDuration = m_clips[row].durationSeconds;
+    }
     updateRow(row);
     return true;
 }
@@ -394,12 +434,92 @@ bool TimelineClipModel::isValidRow(int row) const
     return row >= 0 && row < m_clips.size();
 }
 
-void TimelineClipModel::updateRow(int row)
+void TimelineClipModel::updateRow(int row, const QVector<int>& roles)
 {
     if (!isValidRow(row)) {
         return;
     }
 
     const QModelIndex modelIndex = index(row, 0);
-    emit dataChanged(modelIndex, modelIndex);
+    if (roles.isEmpty()) {
+        emit dataChanged(modelIndex, modelIndex);
+    } else {
+        emit dataChanged(modelIndex, modelIndex, roles);
+    }
 }
+
+void TimelineClipModel::compactTracks()
+{
+    // 1. Compact Video Overlay Tracks (trackIndex >= 1 and < 100)
+    QSet<int> activeVideoTracks;
+    for (const auto& clip : m_clips) {
+        if (clip.trackIndex >= 1 && clip.trackIndex < 100) {
+            activeVideoTracks.insert(clip.trackIndex);
+        }
+    }
+    
+    QVector<int> sortedVideoTracks(activeVideoTracks.begin(), activeVideoTracks.end());
+    std::sort(sortedVideoTracks.begin(), sortedVideoTracks.end());
+    
+    QHash<int, int> videoTrackMap;
+    int nextVideoTrack = 1;
+    for (int oldTrack : sortedVideoTracks) {
+        videoTrackMap[oldTrack] = nextVideoTrack++;
+    }
+    
+    // 2. Compact Audio Tracks (trackIndex >= 100 and < 200)
+    QSet<int> activeAudioTracks;
+    for (const auto& clip : m_clips) {
+        if (clip.trackIndex >= 100 && clip.trackIndex < 200) {
+            activeAudioTracks.insert(clip.trackIndex);
+        }
+    }
+    
+    QVector<int> sortedAudioTracks(activeAudioTracks.begin(), activeAudioTracks.end());
+    std::sort(sortedAudioTracks.begin(), sortedAudioTracks.end());
+    
+    QHash<int, int> audioTrackMap;
+    int nextAudioTrack = 100;
+    for (int oldTrack : sortedAudioTracks) {
+        audioTrackMap[oldTrack] = nextAudioTrack++;
+    }
+    
+    // 3. Compact Effect Tracks (trackIndex >= 300)
+    QSet<int> activeEffectTracks;
+    for (const auto& clip : m_clips) {
+        if (clip.trackIndex >= 300) {
+            activeEffectTracks.insert(clip.trackIndex);
+        }
+    }
+    
+    QVector<int> sortedEffectTracks(activeEffectTracks.begin(), activeEffectTracks.end());
+    std::sort(sortedEffectTracks.begin(), sortedEffectTracks.end());
+    
+    QHash<int, int> effectTrackMap;
+    int nextEffectTrack = 300;
+    for (int oldTrack : sortedEffectTracks) {
+        effectTrackMap[oldTrack] = nextEffectTrack++;
+    }
+
+    // 4. Apply mappings
+    for (int i = 0; i < m_clips.size(); ++i) {
+        int oldTrack = m_clips[i].trackIndex;
+        if (oldTrack >= 1 && oldTrack < 100) {
+            if (videoTrackMap.contains(oldTrack) && videoTrackMap[oldTrack] != oldTrack) {
+                m_clips[i].trackIndex = videoTrackMap[oldTrack];
+                updateRow(i, {TrackIndexRole});
+            }
+        } else if (oldTrack >= 100 && oldTrack < 200) {
+            if (audioTrackMap.contains(oldTrack) && audioTrackMap[oldTrack] != oldTrack) {
+                m_clips[i].trackIndex = audioTrackMap[oldTrack];
+                updateRow(i, {TrackIndexRole});
+            }
+        } else if (oldTrack >= 300) {
+            if (effectTrackMap.contains(oldTrack) && effectTrackMap[oldTrack] != oldTrack) {
+                m_clips[i].trackIndex = effectTrackMap[oldTrack];
+                updateRow(i, {TrackIndexRole});
+            }
+        }
+    }
+}
+

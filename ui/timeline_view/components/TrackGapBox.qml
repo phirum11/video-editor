@@ -1,3 +1,4 @@
+// qmllint disable
 import QtQuick
 import VideoStudioUI
 

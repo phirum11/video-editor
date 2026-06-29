@@ -384,6 +384,7 @@ int MediaItem::audioStreamIndex() const noexcept
 
 void MediaItem::loadMetadata()
 {
+    qDebug() << "MediaItem::loadMetadata - Starting for file:" << m_filePath;
     if (m_filePath.endsWith(QStringLiteral(".srt"), Qt::CaseInsensitive)) {
         m_durationUs = 0;
         m_resolution = {};
@@ -392,35 +393,42 @@ void MediaItem::loadMetadata()
         m_hasVideo = false;
         m_videoStreamIndex = -1;
         m_audioStreamIndex = -1;
+        qDebug() << "MediaItem::loadMetadata - File is .srt, returning early. hasVideo = false";
         return;
     }
 
-    AVFormatContextPtr context = openFormatContext(m_filePath);
+    try {
+        AVFormatContextPtr context = openFormatContext(m_filePath);
+        m_durationUs = contextDurationUs(context.get());
+        m_resolution = {};
+        m_frameRate = 0.0;
+        m_hasAudio = false;
+        m_hasVideo = false;
+        m_videoStreamIndex = -1;
+        m_audioStreamIndex = -1;
 
-    m_durationUs = contextDurationUs(context.get());
-    m_resolution = {};
-    m_frameRate = 0.0;
-    m_hasAudio = false;
-    m_hasVideo = false;
-    m_videoStreamIndex = -1;
-    m_audioStreamIndex = -1;
+        for (unsigned int i = 0; i < context->nb_streams; ++i) {
+            const AVStream* stream = context->streams[i];
+            const AVCodecParameters* parameters = stream->codecpar;
 
-    for (unsigned int i = 0; i < context->nb_streams; ++i) {
-        const AVStream* stream = context->streams[i];
-        const AVCodecParameters* parameters = stream->codecpar;
-
-        if (parameters->codec_type == AVMEDIA_TYPE_VIDEO && !m_hasVideo) {
-            m_hasVideo = true;
-            m_videoStreamIndex = static_cast<int>(i);
-            m_resolution = QSize(parameters->width, parameters->height);
-            m_frameRate = rationalToDouble(stream->avg_frame_rate);
-            if (m_frameRate <= 0.0) {
-                m_frameRate = rationalToDouble(stream->r_frame_rate);
+            if (parameters->codec_type == AVMEDIA_TYPE_VIDEO && !m_hasVideo) {
+                m_hasVideo = true;
+                m_videoStreamIndex = static_cast<int>(i);
+                m_resolution = QSize(parameters->width, parameters->height);
+                m_frameRate = rationalToDouble(stream->avg_frame_rate);
+                if (m_frameRate <= 0.0) {
+                    m_frameRate = rationalToDouble(stream->r_frame_rate);
+                }
+                qDebug() << "MediaItem::loadMetadata - Found video stream at index" << i << "hasVideo = true";
+            } else if (parameters->codec_type == AVMEDIA_TYPE_AUDIO && !m_hasAudio) {
+                m_hasAudio = true;
+                m_audioStreamIndex = static_cast<int>(i);
+                qDebug() << "MediaItem::loadMetadata - Found audio stream at index" << i << "hasAudio = true";
             }
-        } else if (parameters->codec_type == AVMEDIA_TYPE_AUDIO && !m_hasAudio) {
-            m_hasAudio = true;
-            m_audioStreamIndex = static_cast<int>(i);
         }
+        qDebug() << "MediaItem::loadMetadata - Finished processing file:" << m_filePath << "Final hasVideo:" << m_hasVideo << "Final hasAudio:" << m_hasAudio;
+    } catch (const std::exception& e) {
+        qDebug() << "MediaItem::loadMetadata - EXCEPTION occurred for file:" << m_filePath << "Error:" << e.what();
     }
 }
 

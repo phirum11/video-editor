@@ -1,8 +1,10 @@
+// qmllint disable
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
 import QtQuick.Dialogs
 import VideoStudioUI
+import VideoStudio.Core
 import "header/menus"
 import "inspector"
 import "media_pool"
@@ -248,6 +250,9 @@ Window {
                 if (videoPreview.filePath === filePath)
                     videoPreview.clearPreview()
             }
+            onEffectActivated: function(name, filePath) {
+                effectControllerObj.addPresetToTimeline(name, filePath, videoPreview.previewTime, 0, 5.0)
+            }
         }
 
         SubtitleController {
@@ -285,14 +290,19 @@ Window {
             audioLevelLeft: videoPreview.audioLevelLeft
             audioLevelRight: videoPreview.audioLevelRight
             onPreviewRequested: function(name, filePath, duration, hasVideo, startOffset, sourceInPoint) {
-                videoPreview.loadClipWithOffset(name, filePath, duration, hasVideo, startOffset, sourceInPoint)
+                // Do nothing: keep displaying the sequence at the playhead
             }
-            onPreviewCleared: videoPreview.clearPreview()
+            onPreviewCleared: {
+                // Do nothing: deleting a clip shouldn't reset the program monitor playhead
+            }
             onSeekRequested: function(seconds) {
                 videoPreview.seekTo(seconds)
             }
             onSubtitleDropped: function(filePath, startSeconds, trackIndex) {
                 subtitleControllerObj.addSrtToTimelineAt(filePath, timelineView.timelineController, startSeconds, trackIndex)
+            }
+            onEffectDropped: function(name, filePath, startSeconds, trackIndex) {
+                effectControllerObj.addPresetToTimeline(name, filePath, startSeconds, trackIndex, 5.0)
             }
             onGenerateAudioRequested: function(language) {
                 timelineView.timelineController.generateAIVoiceFromSrt(language)

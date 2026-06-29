@@ -1,3 +1,4 @@
+// qmllint disable
 pragma ComponentBehavior: Bound
 
 import QtQuick
@@ -10,6 +11,10 @@ Rectangle {
 
     property string viewMode: "grid"
     property real zoomValue: 0.5
+    property bool filterPanelVisible: true
+    property bool showThumbnails: true
+    property bool showAudioWaveforms: true
+    property bool showKeyframes: false
     property color panelLine: Theme.divider
     property color textPrimary: Theme.text
     property color textMuted: Theme.textMuted
@@ -19,6 +24,11 @@ Rectangle {
     signal zoomValueRequested(real value)
     signal newBinRequested()
     signal panelToggled()
+    signal showThumbnailsToggled(bool show)
+    signal showAudioWaveformsToggled(bool show)
+    signal showKeyframesToggled(bool show)
+    signal minimizeAllRequested()
+    signal expandAllRequested()
 
     color: Theme.background
     border.color: panelLine
@@ -102,6 +112,7 @@ Rectangle {
 
         ToolIconButton {
             iconSource: "qrc:/VideoStudioUI/assets/panel.svg"
+            active: footerRoot.filterPanelVisible
             toolTipText: qsTr("Panel Options")
             onClicked: footerRoot.panelToggled()
         }
@@ -125,9 +136,21 @@ Rectangle {
             spacing: 0
             padding: 6
 
-            SettingsToggle { label: qsTr("Show Thumbnails"); checked: true }
-            SettingsToggle { label: qsTr("Show Audio Waveforms"); checked: true }
-            SettingsToggle { label: qsTr("Show Keyframes"); checked: false }
+            SettingsToggle { 
+                label: qsTr("Show Thumbnails")
+                checked: footerRoot.showThumbnails
+                onToggled: footerRoot.showThumbnailsToggled(checked)
+            }
+            SettingsToggle { 
+                label: qsTr("Show Audio Waveforms")
+                checked: footerRoot.showAudioWaveforms
+                onToggled: footerRoot.showAudioWaveformsToggled(checked)
+            }
+            SettingsToggle { 
+                label: qsTr("Show Keyframes")
+                checked: footerRoot.showKeyframes
+                onToggled: footerRoot.showKeyframesToggled(checked)
+            }
 
             Rectangle {
                 width: parent.width - 12
@@ -136,8 +159,20 @@ Rectangle {
                 anchors.horizontalCenter: parent.horizontalCenter
             }
 
-            SettingsAction { label: qsTr("Minimize All Tracks") }
-            SettingsAction { label: qsTr("Expand All Tracks") }
+            SettingsAction { 
+                label: qsTr("Minimize All Tracks")
+                onClicked: {
+                    footerRoot.minimizeAllRequested()
+                    mediaPoolSettingsPopup.close()
+                }
+            }
+            SettingsAction { 
+                label: qsTr("Expand All Tracks")
+                onClicked: {
+                    footerRoot.expandAllRequested()
+                    mediaPoolSettingsPopup.close()
+                }
+            }
         }
     }
 
@@ -176,6 +211,7 @@ Rectangle {
         id: settingsToggle
         property string label: ""
         property bool checked: false
+        signal toggled()
 
         width: parent ? parent.width - 12 : 200
         height: 32
@@ -219,13 +255,17 @@ Rectangle {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: settingsToggle.checked = !settingsToggle.checked
+            onClicked: {
+                settingsToggle.checked = !settingsToggle.checked
+                settingsToggle.toggled()
+            }
         }
     }
 
     component SettingsAction: Rectangle {
         id: settingsAction
         property string label: ""
+        signal clicked()
 
         width: parent ? parent.width - 12 : 200
         height: 32
@@ -246,6 +286,7 @@ Rectangle {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
+            onClicked: settingsAction.clicked()
         }
     }
 }

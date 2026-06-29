@@ -13,6 +13,7 @@ class MediaPoolController : public QObject
     QML_ELEMENT
     Q_PROPERTY(QAbstractItemModel* mediaModel READ mediaModel NOTIFY mediaModelChanged)
     Q_PROPERTY(QString searchQuery READ searchQuery WRITE setSearchQuery NOTIFY searchQueryChanged)
+    Q_PROPERTY(int mediaTypeFilter READ mediaTypeFilter WRITE setMediaTypeFilter NOTIFY mediaTypeFilterChanged)
 
 public:
     explicit MediaPoolController(QObject *parent = nullptr);
@@ -20,6 +21,9 @@ public:
     QAbstractItemModel* mediaModel() const;
     QString searchQuery() const;
     void setSearchQuery(const QString& query);
+
+    int mediaTypeFilter() const;
+    void setMediaTypeFilter(int filter);
 
     Q_INVOKABLE void importMediaFiles();
     Q_INVOKABLE void importMediaPath(const QString& filePath);
@@ -33,6 +37,7 @@ signals:
     void mediaModelChanged();
     void mediaRemoved(const QString& filePath);
     void searchQueryChanged();
+    void mediaTypeFilterChanged();
 
 private:
     bool addMediaPath(const QString& filePath);
@@ -40,6 +45,7 @@ private:
     MediaListModel* m_mediaModel;
     QSortFilterProxyModel* m_proxyModel;
     QString m_searchQuery;
+    int m_mediaTypeFilter = 0;
 };
 
 #endif // MEDIAPOOLCONTROLLER_H

@@ -1,3 +1,4 @@
+// qmllint disable
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -27,11 +28,24 @@ Rectangle {
                 id: chromaHeader
                 Layout.fillWidth: true
                 title: "Chroma Key (Advanced)"
+                expanded: true
                 effectEnabled: chromaTabRoot.chromaKeyData ? chromaTabRoot.chromaKeyData.enabled : false
                 
                 onEffectEnabledToggled: (enabled) => {
                     if (chromaTabRoot.chromaKeyData)
                         chromaTabRoot.chromaKeyData.enabled = enabled
+                }
+                
+                onResetClicked: {
+                    varianceSlider.value = varianceSlider.defaultValue
+                    softnessSlider.value = softnessSlider.defaultValue
+                    if (chromaTabRoot.chromaKeyData) {
+                        chromaTabRoot.chromaKeyData.enabled = false
+                        chromaTabRoot.chromaKeyData.color = "#00FF00"
+                        chromaTabRoot.chromaKeyData.variance = 0.25
+                        chromaTabRoot.chromaKeyData.softness = 0.1
+                        chromaTabRoot.chromaKeyData.spillSuppress = true
+                    }
                 }
             }
             
@@ -90,6 +104,7 @@ Rectangle {
                         label: "Variance"
                         min: 0.0
                         max: 1.0
+                        defaultValue: 0.25
                         value: chromaTabRoot.chromaKeyData ? chromaTabRoot.chromaKeyData.variance : 0.25
                         onValueChanged: { if(chromaTabRoot.chromaKeyData && chromaTabRoot.chromaKeyData.variance !== value) chromaTabRoot.chromaKeyData.variance = value }
                     }
@@ -100,6 +115,7 @@ Rectangle {
                         label: "Softness"
                         min: 0.0
                         max: 1.0
+                        defaultValue: 0.1
                         value: chromaTabRoot.chromaKeyData ? chromaTabRoot.chromaKeyData.softness : 0.1
                         onValueChanged: { if(chromaTabRoot.chromaKeyData && chromaTabRoot.chromaKeyData.softness !== value) chromaTabRoot.chromaKeyData.softness = value }
                     }

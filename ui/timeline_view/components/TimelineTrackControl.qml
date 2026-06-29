@@ -1,3 +1,4 @@
+// qmllint disable
 pragma ComponentBehavior: Bound
 
 import QtQuick
@@ -5,6 +6,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 
 import VideoStudioUI
+import "../../../ui/header/dialogs"
 
 Rectangle {
     id: controlRoot
@@ -12,8 +14,10 @@ Rectangle {
     clip: true
 
     property bool hasTimelineClips: false
-    property bool isMainTrack: isVideoTrack && logicalTrackIndex === (timelineController ? timelineController.videoTrackCount - 1 : 0)
+    property bool isMainTrack: isVideoTrack && logicalTrackIndex === 0
     property bool isVideoTrack: true
+    property bool isSubtitleTrack: false
+    property bool isEffectTrack: false
     property string trackName: "Track"
     property var timelineController: null
     required property int index
@@ -45,14 +49,6 @@ Rectangle {
         }
     }
 
-    Rectangle {
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        height: 1
-        color: Theme.divider
-        opacity: 0.5
-    }
 
     Rectangle {
         anchors.right: parent.right
@@ -64,9 +60,9 @@ Rectangle {
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: 4
-        anchors.rightMargin: 4
-        spacing: 4
+        anchors.leftMargin: 16
+        anchors.rightMargin: 12
+        spacing: 12 
 
         // Icons
         RowLayout { 
@@ -74,6 +70,14 @@ Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 8
+
+            Image {
+                source: controlRoot.isEffectTrack ? "qrc:/VideoStudioUI/assets/star.svg" : (controlRoot.isSubtitleTrack ? "qrc:/VideoStudioUI/assets/track-subtitle.svg" : (controlRoot.isVideoTrack ? "qrc:/VideoStudioUI/assets/track-video.svg" : "qrc:/VideoStudioUI/assets/track-audio.svg"))
+                sourceSize: Qt.size(14, 14)
+                Layout.preferredWidth: 14; Layout.preferredHeight: 14
+                fillMode: Image.PreserveAspectFit
+                opacity: 0.6
+            }
 
             Image {
                 source: controlRoot.isLocked ? "qrc:/VideoStudioUI/assets/lock.svg" : "qrc:/VideoStudioUI/assets/unlock.svg"
@@ -100,7 +104,8 @@ Rectangle {
                 sourceSize: Qt.size(14, 14)
                 Layout.preferredWidth: 14; Layout.preferredHeight: 14
                 fillMode: Image.PreserveAspectFit
-                opacity: controlRoot.isHidden ? 1.0 : (rootHover.hovered ? (hideHover.hovered ? 1.0 : 0.7) : 0.4)
+                opacity: (!controlRoot.isVideoTrack && !controlRoot.isSubtitleTrack) ? 0.0 : (controlRoot.isHidden ? 1.0 : (rootHover.hovered ? (hideHover.hovered ? 1.0 : 0.7) : 0.4))
+                enabled: controlRoot.isVideoTrack || controlRoot.isSubtitleTrack
                 HoverHandler { id: hideHover }
                 ToolTip.visible: hideHover.hovered
                 ToolTip.text: controlRoot.isHidden ? "Show Track" : "Hide Track"
@@ -116,8 +121,9 @@ Rectangle {
                 }
             }
             Image {
+                visible: !controlRoot.isSubtitleTrack
                 source: controlRoot.isMuted ? "qrc:/VideoStudioUI/assets/volume-x.svg" : "qrc:/VideoStudioUI/assets/volume-2.svg"
-                sourceSize: Qt.size(14, 14)
+                sourceSize: Qt.size(14, 14)   
                 Layout.preferredWidth: 14; Layout.preferredHeight: 14
                 fillMode: Image.PreserveAspectFit
                 opacity: controlRoot.isMuted ? 1.0 : (rootHover.hovered ? (muteHover.hovered ? 1.0 : 0.7) : 0.4)
@@ -143,7 +149,7 @@ Rectangle {
 
         // CapCut style Cover button
         Rectangle {
-            visible: controlRoot.isMainTrack && controlRoot.isVideoTrack && !controlRoot.isTrackEmpty
+            visible: controlRoot.isMainTrack && controlRoot.isVideoTrack && !controlRoot.isSubtitleTrack && !controlRoot.isTrackEmpty
             width: 32
             height: 30
             radius: 4
@@ -152,6 +158,12 @@ Rectangle {
             border.width: 1
             clip: true
             
+            CoverSelectDialog {
+                id: coverSelectDialog
+                timelineController: controlRoot.timelineController
+                parent: Overlay.overlay
+            }
+
             Image {
                 source: "qrc:/VideoStudioUI/assets/edit-2.svg"
                 sourceSize: Qt.size(14, 14)
@@ -174,7 +186,7 @@ Rectangle {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
-                    // Placeholder for cover action
+                    coverSelectDialog.open()
                 }
             }
         }

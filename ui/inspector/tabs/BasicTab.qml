@@ -1,5 +1,4 @@
-// qmllint disable unqualified
-// qmllint disable missing-property
+// qmllint disable
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -87,6 +86,7 @@ ScrollView {
             onResetClicked: {
                 opacitySlider.value = opacitySlider.defaultValue
                 blendModeCombo.currentIndex = 0
+                if (effectController) effectController.transform.blendMode = "Normal"
             }
         }
         
@@ -117,6 +117,8 @@ ScrollView {
                     Layout.preferredHeight: 24
                     model: ["Normal", "Dissolve", "Darken", "Multiply", "Color Burn", "Linear Burn", "Screen", "Color Dodge", "Overlay", "Soft Light", "Hard Light"]
                     
+                    onActivated: { if (effectController) effectController.transform.blendMode = blendModeCombo.currentText }
+
                     background: Rectangle {
                         color: Theme.surfaceRaised
                         border.color: Theme.divider
@@ -184,6 +186,7 @@ ScrollView {
                 function onAnchorXChanged() { anchorXSlider.value = effectController.transform.anchorX }
                 function onAnchorYChanged() { anchorYSlider.value = effectController.transform.anchorY }
                 function onOpacityChanged() { opacitySlider.value = effectController.transform.opacity }
+                function onBlendModeChanged() { blendModeCombo.currentIndex = blendModeCombo.find(effectController.transform.blendMode) }
             }
         }
         Item { Layout.fillHeight: true }

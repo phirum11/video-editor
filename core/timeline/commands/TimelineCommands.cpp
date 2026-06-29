@@ -97,24 +97,14 @@ void MoveClipCommand::redo() {
     if (m_firstTime) {
         m_firstTime = false;
         
-        // Save current state
-        if (m_linked) {
-            QString linkGroup = m_model->linkGroupAt(m_row);
-            QVector<int> rows = m_model->getLinkedRows(linkGroup);
-            if (rows.isEmpty()) rows.append(m_row);
-            
-            for (int r : rows) {
-                m_savedStates.append({r, m_model->clipAt(r)});
-            }
-        } else {
-            m_savedStates.append({m_row, m_model->clipAt(m_row)});
+        // Save current state of all clips because moving a clip can shift other clips up
+        for (int r = 0; r < m_model->rowCount(); ++r) {
+            m_savedStates.append({r, m_model->clipAt(r)});
         }
         
         // Let the model do the complex move logic once
         m_model->moveClip(m_row, m_newStart, m_newTrack, m_linked);
     } else {
-        // We know what the result was, but it's easier to just call moveClip again
-        // Wait! We can just call moveClip with the saved logic, but m_model->moveClip is deterministic.
         m_model->moveClip(m_row, m_newStart, m_newTrack, m_linked);
     }
 }
